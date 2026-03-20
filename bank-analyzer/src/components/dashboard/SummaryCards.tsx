@@ -1,23 +1,7 @@
-import { Movement, MovementsSummary } from '../../services/api'
-
-const MONTH_NAMES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+import { MovementsSummary } from '../../services/api'
 
 function formatAmount(n: number): string {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
-}
-
-/** Extract "YYYY-MM" from a "DD/MM/YYYY" date string */
-function toCalendarMonth(dateStr: string): string {
-  const parts = dateStr.split('/')
-  if (parts.length === 3) return `${parts[2]}-${parts[1]}`
-  return dateStr
-}
-
-/** Friendly month label from "YYYY-MM" */
-function calendarMonthLabel(ym: string): string {
-  const [year, month] = ym.split('-')
-  const m = parseInt(month) - 1
-  return `${MONTH_NAMES_ES[m] ?? month} ${year}`
 }
 
 interface SummaryCardsProps {
@@ -25,28 +9,17 @@ interface SummaryCardsProps {
   statementType?: string
   minPayment?: number | null
   totalPayment?: number | null
-  movements?: Movement[]
 }
 
-export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPayment, totalPayment, movements = [] }: SummaryCardsProps) {
+export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPayment, totalPayment }: SummaryCardsProps) {
   const income = summary?.total_income ?? 0
   const expenses = summary?.total_expenses ?? 0
   const balance = summary?.balance ?? 0
 
   const isCreditCard = statementType === 'tarjeta_credito'
 
-  /** Group credit card expenses by calendar month (from movement dates) */
-  const expenseByMonth = isCreditCard
-    ? (() => {
-        const map = new Map<string, number>()
-        for (const m of movements) {
-          if (m.type !== 'Egreso') continue
-          const ym = toCalendarMonth(m.date)
-          map.set(ym, (map.get(ym) ?? 0) + m.amount)
-        }
-        return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
-      })()
-    : []
+  // Month breakdown comes directly from the backend summary (always consistent with the total)
+  const expensesByMonth = summary?.expenses_by_month ?? []
 
   const cards = [
     {
@@ -56,7 +29,7 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
       icon: isCreditCard ? '💳' : '↑',
       bg: 'rgba(34,197,94,0.08)',
       hint: isCreditCard ? 'Pagos realizados a la tarjeta' : undefined,
-      breakdown: null as null | Array<[string, number]>,
+      breakdown: false,
     },
     {
       label: isCreditCard ? 'Consumos Totales' : 'Egresos',
@@ -65,7 +38,7 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
       icon: '↓',
       bg: 'rgba(239,68,68,0.08)',
       hint: isCreditCard ? 'Total de compras del período' : undefined,
-      breakdown: isCreditCard && expenseByMonth.length > 1 ? expenseByMonth : null,
+      breakdown: isCreditCard && expensesByMonth.length > 1,
     },
     {
       label: isCreditCard ? 'Saldo Pendiente' : 'Balance',
@@ -74,7 +47,7 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
       icon: isCreditCard ? '⚖️' : '≈',
       bg: balance >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
       hint: isCreditCard ? (balance >= 0 ? 'A favor del titular' : 'Monto por pagar') : undefined,
-      breakdown: null as null | Array<[string, number]>,
+      breakdown: false,
     },
   ]
 
@@ -107,16 +80,16 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
                 {card.hint}
               </div>
             )}
-            {/* Month breakdown for credit card consumos */}
+            {/* Month breakdown for credit card consumos — sourced from backend for accuracy */}
             {card.breakdown && (
               <div className="mt-3 pt-2 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
-                {card.breakdown.map(([ym, total]) => (
-                  <div key={ym} className="flex items-center justify-between">
+                {expensesByMonth.map((row) => (
+                  <div key={row.month} className="flex items-center justify-between">
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {calendarMonthLabel(ym)}
+                      {row.month_label}
                     </span>
                     <span className="text-xs font-semibold" style={{ color: card.color }}>
-                      {formatAmount(total)}
+                      {formatAmount(row.total)}
                     </span>
                   </div>
                 ))}

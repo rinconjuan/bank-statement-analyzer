@@ -5,10 +5,35 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from models.database import get_db, Movement
-from models.schemas import Movement as MovementSchema, MovementUpdate, MovementsSummary, CategorySummary
+from models.schemas import (
+    Movement as MovementSchema, MovementUpdate,
+    MovementsSummary, CategorySummary, MonthlyExpenseBreakdown,
+)
 from core.categorizer import save_user_rule
 
 router = APIRouter()
+
+_MONTH_NAMES_ES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+
+def _ym_to_label(ym: str) -> str:
+    """Convert 'YYYY-MM' → 'Enero 2026'."""
+    try:
+        year, month = ym.split('-')
+        return f'{_MONTH_NAMES_ES[int(month) - 1]} {year}'
+    except Exception:
+        return ym
+
+
+def _date_to_ym(date_str: str) -> str:
+    """Convert 'DD/MM/YYYY' → 'YYYY-MM'."""
+    parts = date_str.split('/')
+    if len(parts) == 3:
+        return f'{parts[2]}-{parts[1]}'
+    return date_str
 
 
 @router.get('', response_model=list[MovementSchema])
@@ -92,11 +117,24 @@ def get_summary(month_id: Optional[int] = Query(None), db: Session = Depends(get
             count=data['count']
         ))
 
+    # Month-by-month expense breakdown (for credit card statements)
+    monthly: dict[str, float] = defaultdict(float)
+    for m in movements:
+        if m.type == 'Egreso':
+            ym = _date_to_ym(m.date)
+            monthly[ym] += m.amount
+
+    expenses_by_month = [
+        MonthlyExpenseBreakdown(month=ym, month_label=_ym_to_label(ym), total=total)
+        for ym, total in sorted(monthly.items())
+    ]
+
     return MovementsSummary(
         by_category=sorted(by_category, key=lambda x: x.total, reverse=True),
         total_income=total_income,
         total_expenses=total_expenses,
-        balance=total_income - total_expenses
+        balance=total_income - total_expenses,
+        expenses_by_month=expenses_by_month,
     )
 
 

@@ -93,7 +93,6 @@ export default function App() {
                 statementType={activeMonth?.statement_type}
                 minPayment={activeMonth?.min_payment}
                 totalPayment={activeMonth?.total_payment}
-                movements={movements}
               />
               <div className="grid grid-cols-2 gap-4">
                 <CategoryChart summary={summary} />

@@ -111,8 +111,15 @@ class CategorySummary(BaseModel):
     count: int
 
 
+class MonthlyExpenseBreakdown(BaseModel):
+    month: str        # 'YYYY-MM'
+    month_label: str  # e.g. 'Febrero 2026'
+    total: float
+
+
 class MovementsSummary(BaseModel):
     by_category: list[CategorySummary]
     total_income: float
     total_expenses: float
     balance: float
+    expenses_by_month: list[MonthlyExpenseBreakdown] = []

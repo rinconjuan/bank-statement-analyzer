@@ -79,11 +79,18 @@ export interface CategorySummary {
   count: number
 }
 
+export interface MonthlyExpenseBreakdown {
+  month: string        // 'YYYY-MM'
+  month_label: string  // 'Febrero 2026'
+  total: number
+}
+
 export interface MovementsSummary {
   by_category: CategorySummary[]
   total_income: number
   total_expenses: number
   balance: number
+  expenses_by_month: MonthlyExpenseBreakdown[]
 }
 
 // Months
