@@ -104,6 +104,8 @@ class CategorySummary(BaseModel):
     category_color: str
     category_icon: str
     total: float
+    income_total: float = 0.0
+    expense_total: float = 0.0
     count: int
 
 

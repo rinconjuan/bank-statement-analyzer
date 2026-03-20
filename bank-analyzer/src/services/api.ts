@@ -73,6 +73,8 @@ export interface CategorySummary {
   category_color: string
   category_icon: string
   total: number
+  income_total: number
+  expense_total: number
   count: number
 }
 

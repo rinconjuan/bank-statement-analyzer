@@ -57,12 +57,15 @@ def get_summary(month_id: Optional[int] = Query(None), db: Session = Depends(get
     total_income = sum(m.amount for m in movements if m.type == 'Ingreso')
     total_expenses = sum(m.amount for m in movements if m.type == 'Egreso')
 
-    cat_data = defaultdict(lambda: {'total': 0.0, 'count': 0, 'cat': None})
+    cat_data = defaultdict(lambda: {'income': 0.0, 'expense': 0.0, 'count': 0, 'cat': None})
     for m in movements:
         key = m.category_id
         if m.category:
             cat_data[key]['cat'] = m.category
-        cat_data[key]['total'] += m.amount
+        if m.type == 'Ingreso':
+            cat_data[key]['income'] += m.amount
+        else:
+            cat_data[key]['expense'] += m.amount
         cat_data[key]['count'] += 1
 
     by_category = []
@@ -73,7 +76,9 @@ def get_summary(month_id: Optional[int] = Query(None), db: Session = Depends(get
             category_name=cat.name if cat else 'Sin categoría',
             category_color=cat.color if cat else '#94a3b8',
             category_icon=cat.icon if cat else '📦',
-            total=data['total'],
+            total=data['income'] + data['expense'],
+            income_total=data['income'],
+            expense_total=data['expense'],
             count=data['count']
         ))
 
