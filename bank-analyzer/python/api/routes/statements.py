@@ -6,7 +6,7 @@ from datetime import datetime
 
 from models.database import get_db, Month, Movement
 from models.schemas import UploadResponse, MonthWithStats, Movement as MovementSchema
-from core.pdf_parser import parse_pdf
+from core.pdf_parser import parse_pdf, PDFPasswordRequiredError
 from core.categorizer import auto_categorize_movements
 
 router = APIRouter()
@@ -16,12 +16,13 @@ router = APIRouter()
 async def upload_statement(
     file: UploadFile = File(...),
     statement_type: str = Form('cuenta_ahorro'),
+    password: str = Form(''),
     db: Session = Depends(get_db),
 ):
     if not file.filename or not file.filename.lower().endswith('.pdf'):
         raise HTTPException(400, 'Only PDF files are accepted')
 
-    valid_types = {'cuenta_ahorro', 'tarjeta_credito', 'tarjeta_debito'}
+    valid_types = {'cuenta_ahorro', 'tarjeta_credito'}
     if statement_type not in valid_types:
         statement_type = 'cuenta_ahorro'
 
@@ -31,7 +32,10 @@ async def upload_statement(
         tmp_path = tmp.name
 
     try:
-        movements_data, bank_name = parse_pdf(tmp_path)
+        pdf_password = password.strip() or None
+        movements_data, bank_name = parse_pdf(tmp_path, password=pdf_password)
+    except PDFPasswordRequiredError:
+        raise HTTPException(422, detail='PDF_PASSWORD_REQUIRED')
     finally:
         os.unlink(tmp_path)
 

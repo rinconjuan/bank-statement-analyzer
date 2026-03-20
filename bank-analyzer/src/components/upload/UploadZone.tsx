@@ -7,9 +7,8 @@ interface UploadZoneProps {
 }
 
 const STATEMENT_TYPES = [
-  { value: 'cuenta_ahorro',   label: 'Cuenta de Ahorro',  icon: '🏦' },
+  { value: 'cuenta_ahorro',   label: 'Cuenta de Ahorro',   icon: '🏦' },
   { value: 'tarjeta_credito', label: 'Tarjeta de Crédito', icon: '💳' },
-  { value: 'tarjeta_debito',  label: 'Tarjeta Débito',    icon: '💴' },
 ]
 
 export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
@@ -18,24 +17,41 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
   const [preview, setPreview] = useState<UploadResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [statementType, setStatementType] = useState('cuenta_ahorro')
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [passwordMode, setPasswordMode] = useState(false)
+  const [password, setPassword] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const doUpload = useCallback(async (file: File, pwd: string = '') => {
+    setUploading(true)
+    setError(null)
+    try {
+      const result = await uploadStatement(file, statementType, pwd)
+      setPreview(result)
+      setPasswordMode(false)
+      setPendingFile(null)
+      setPassword('')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error al cargar el archivo'
+      if (msg === 'PDF_PASSWORD_REQUIRED') {
+        setPendingFile(file)
+        setPasswordMode(true)
+        setError(null)
+      } else {
+        setError(msg)
+      }
+    } finally {
+      setUploading(false)
+    }
+  }, [statementType])
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       setError('Solo se aceptan archivos PDF')
       return
     }
-    setUploading(true)
-    setError(null)
-    try {
-      const result = await uploadStatement(file, statementType)
-      setPreview(result)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar el archivo')
-    } finally {
-      setUploading(false)
-    }
-  }, [statementType])
+    await doUpload(file)
+  }, [doUpload])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -44,8 +60,12 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
     if (file) handleFile(file)
   }, [handleFile])
 
-  const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+  const handlePasswordSubmit = useCallback(async () => {
+    if (!pendingFile || !password.trim()) return
+    await doUpload(pendingFile, password.trim())
+  }, [pendingFile, password, doUpload])
 
+  const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
   const selectedType = STATEMENT_TYPES.find(t => t.value === statementType)!
 
   return (
@@ -66,7 +86,52 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
           Cargar extracto bancario
         </h2>
 
-        {!preview ? (
+        {passwordMode ? (
+          /* ── Password prompt ── */
+          <div>
+            <div className="rounded-xl p-4 mb-4 text-center" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}>
+              <div className="text-3xl mb-2">🔒</div>
+              <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+                Este PDF está protegido con contraseña
+              </div>
+              <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                Ingresa la contraseña para procesar el extracto
+              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handlePasswordSubmit() }}
+                placeholder="Contraseña del PDF..."
+                autoFocus
+                className="w-full text-sm rounded-lg px-3 py-2 mb-3"
+                style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', outline: 'none' }}
+              />
+              {error && (
+                <div className="mb-3 text-xs px-3 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--accent-red)' }}>
+                  {error}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePasswordSubmit}
+                  disabled={uploading || !password.trim()}
+                  className="flex-1 py-2 rounded-xl font-medium text-sm transition-all hover:opacity-90 disabled:opacity-50"
+                  style={{ background: 'var(--accent-primary)', color: '#fff' }}
+                >
+                  {uploading ? 'Procesando...' : 'Desbloquear y procesar'}
+                </button>
+                <button
+                  onClick={() => { setPasswordMode(false); setPendingFile(null); setPassword(''); setError(null) }}
+                  className="px-4 py-2 rounded-xl text-sm"
+                  style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : !preview ? (
           <>
             {/* Statement type selector */}
             <div className="mb-4">

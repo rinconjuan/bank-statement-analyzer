@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from models.database import get_db, Movement
 from models.schemas import Movement as MovementSchema, MovementUpdate, MovementsSummary, CategorySummary
+from core.categorizer import save_user_rule
 
 router = APIRouter()
 
@@ -37,6 +38,8 @@ def update_movement(movement_id: int, update: MovementUpdate, db: Session = Depe
         raise HTTPException(404, 'Movement not found')
     if update.category_id is not None:
         movement.category_id = update.category_id
+        # Persist a user rule so future auto-categorization learns from this change
+        save_user_rule(db, movement.description, update.category_id)
     if update.note is not None:
         movement.note = update.note
     db.commit()

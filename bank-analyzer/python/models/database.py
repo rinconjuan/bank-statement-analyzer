@@ -27,6 +27,20 @@ class Category(Base):
     movements = relationship('Movement', back_populates='category')
 
 
+class UserCategoryRule(Base):
+    """Stores manual category assignments to improve future auto-categorization."""
+    __tablename__ = 'user_category_rules'
+
+    id = Column(Integer, primary_key=True, index=True)
+    description_fragment = Column(String, nullable=False, unique=True)
+    category_id = Column(Integer, ForeignKey('categories.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    category = relationship('Category')
+
+
 class Month(Base):
     __tablename__ = 'months'
 

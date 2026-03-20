@@ -6,17 +6,41 @@ function formatAmount(n: number): string {
 
 interface SummaryCardsProps {
   summary: MovementsSummary | null
+  statementType?: string
 }
 
-export function SummaryCards({ summary }: SummaryCardsProps) {
+export function SummaryCards({ summary, statementType = 'cuenta_ahorro' }: SummaryCardsProps) {
   const income = summary?.total_income ?? 0
   const expenses = summary?.total_expenses ?? 0
   const balance = summary?.balance ?? 0
 
+  const isCreditCard = statementType === 'tarjeta_credito'
+
   const cards = [
-    { label: 'Ingresos', value: income, color: 'var(--accent-green)', icon: '↑', bg: 'rgba(34,197,94,0.08)' },
-    { label: 'Egresos', value: expenses, color: 'var(--accent-red)', icon: '↓', bg: 'rgba(239,68,68,0.08)' },
-    { label: 'Balance', value: balance, color: balance >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', icon: '≈', bg: balance >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)' },
+    {
+      label: isCreditCard ? 'Pagos/Abonos' : 'Ingresos',
+      value: income,
+      color: 'var(--accent-green)',
+      icon: isCreditCard ? '💳' : '↑',
+      bg: 'rgba(34,197,94,0.08)',
+      hint: isCreditCard ? 'Pagos realizados a la tarjeta' : undefined,
+    },
+    {
+      label: isCreditCard ? 'Consumos' : 'Egresos',
+      value: expenses,
+      color: 'var(--accent-red)',
+      icon: '↓',
+      bg: 'rgba(239,68,68,0.08)',
+      hint: isCreditCard ? 'Total de compras del período' : undefined,
+    },
+    {
+      label: isCreditCard ? 'Saldo Pendiente' : 'Balance',
+      value: balance,
+      color: balance >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
+      icon: isCreditCard ? '⚖️' : '≈',
+      bg: balance >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+      hint: isCreditCard ? (balance >= 0 ? 'A favor del titular' : 'Monto por pagar') : undefined,
+    },
   ]
 
   return (
@@ -42,6 +66,11 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
           >
             {formatAmount(card.value)}
           </div>
+          {card.hint && (
+            <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              {card.hint}
+            </div>
+          )}
         </div>
       ))}
     </div>

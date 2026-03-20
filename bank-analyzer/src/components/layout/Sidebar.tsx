@@ -5,7 +5,6 @@ const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Se
 const STATEMENT_TYPE_ICON: Record<string, string> = {
   cuenta_ahorro: '🏦',
   tarjeta_credito: '💳',
-  tarjeta_debito: '💴',
 }
 
 interface SidebarProps {

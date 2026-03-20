@@ -2,6 +2,12 @@ import pdfplumber
 import re
 from typing import Optional
 
+
+class PDFPasswordRequiredError(Exception):
+    """Raised when a PDF requires a password to open."""
+    pass
+
+
 BANK_PATTERNS = {
     'bancolombia': r'(\d{2}/\d{2}/\d{4})\s+(.+?)\s+([\d,.]+)\s+([\d,.]+)',
     'generic': r'(\d{2}/\d{2})\s+(.+?)\s+(-?\d+[.,]\d{2})',
@@ -67,12 +73,32 @@ def _is_doubled_text(s: str) -> bool:
     return pairs >= len(non_space) // 2 * 0.8
 
 
-def parse_pdf(file_path: str) -> tuple[list[dict], str]:
-    """Parse PDF and return (movements, bank_name)"""
+def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], str]:
+    """Parse PDF and return (movements, bank_name).
+
+    Raises PDFPasswordRequiredError if the file is encrypted and no password
+    (or a wrong password) is supplied.
+    """
     movements = []
     bank_name = 'generic'
 
-    with pdfplumber.open(file_path) as pdf:
+    open_kwargs: dict = {}
+    if password:
+        open_kwargs['password'] = password
+
+    try:
+        pdf_ctx = pdfplumber.open(file_path, **open_kwargs)
+    except Exception as exc:
+        # pdfplumber / pdfminer raises various exceptions for encrypted PDFs:
+        # pdfminer.pdfdocument.PDFPasswordIncorrect  (wrong or empty password)
+        # pdfminer.pdfpage.PDFTextExtractionNotAllowed  (some locked PDFs)
+        exc_name = type(exc).__name__
+        if exc_name in ('PDFPasswordIncorrect', 'PDFTextExtractionNotAllowed') or \
+                'password' in str(exc).lower() or 'encrypt' in str(exc).lower():
+            raise PDFPasswordRequiredError('PDF is password-protected') from exc
+        raise
+
+    with pdf_ctx as pdf:
         full_text = ''
         for page in pdf.pages:
             page_text = page.extract_text() or ''
@@ -82,7 +108,7 @@ def parse_pdf(file_path: str) -> tuple[list[dict], str]:
 
         if bank_name == 'falabella':
             # Use the dedicated Falabella parser (text-based + table for split-line entries)
-            movements = _parse_falabella(file_path, full_text)
+            movements = _parse_falabella(file_path, full_text, password=password)
         else:
             # Generic path: try table extraction first, fall back to regex
             for page in pdf.pages:
@@ -117,7 +143,7 @@ def parse_pdf(file_path: str) -> tuple[list[dict], str]:
 # Falabella / CMR credit-card parser
 # ---------------------------------------------------------------------------
 
-def _parse_falabella(file_path: str, full_text: str) -> list[dict]:
+def _parse_falabella(file_path: str, full_text: str, password: str | None = None) -> list[dict]:
     """Parse a Banco Falabella CMR credit-card statement.
 
     Uses two complementary strategies and merges the results:
@@ -126,7 +152,7 @@ def _parse_falabella(file_path: str, full_text: str) -> list[dict]:
        lines in the PDF (e.g. 'ABONO COMPRA MASTERCARD INTERN').
     """
     text_movs = _parse_falabella_text(full_text)
-    table_movs = _parse_falabella_tables(file_path)
+    table_movs = _parse_falabella_tables(file_path, password=password)
 
     # Merge: text results first, then add table entries not already present
     seen: set = set()
@@ -219,15 +245,18 @@ def _parse_falabella_text(text: str) -> list[dict]:
     return movements
 
 
-def _parse_falabella_tables(file_path: str) -> list[dict]:
+def _parse_falabella_tables(file_path: str, password: str | None = None) -> list[dict]:
     """Extract movements from the pdfplumber tables of a Falabella statement.
 
     Covers entries whose description is split across lines in the raw text
     (e.g. 'ABONO COMPRA MASTERCARD INTERN').
     """
     movements: list[dict] = []
+    open_kwargs: dict = {}
+    if password:
+        open_kwargs['password'] = password
 
-    with pdfplumber.open(file_path) as pdf:
+    with pdfplumber.open(file_path, **open_kwargs) as pdf:
         for page in pdf.pages:
             for table in page.extract_tables():
                 for row in table:
