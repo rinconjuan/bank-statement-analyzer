@@ -73,6 +73,10 @@ async function createWindow(): Promise<void> {
     )
   })
 
+  // Register IPC handlers BEFORE loading the URL so they are available
+  // when the renderer calls getApiPort() during its bootstrap phase.
+  registerIpcHandlers(mainWindow)
+
   if (isDev) {
     await mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools()
@@ -87,8 +91,6 @@ async function createWindow(): Promise<void> {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
-
-  registerIpcHandlers(mainWindow)
 }
 
 app.whenReady().then(createWindow)
