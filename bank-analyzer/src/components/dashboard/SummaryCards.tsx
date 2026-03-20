@@ -1,4 +1,3 @@
-import React from 'react'
 import { MovementsSummary } from '../../services/api'
 
 function formatAmount(n: number): string {

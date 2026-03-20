@@ -1,4 +1,3 @@
-import React from 'react'
 import { MonthWithStats } from '../../services/api'
 import { getExportUrl } from '../../services/api'
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Movement, Category } from '../../services/api'
 import { MovementRow } from './MovementRow'
 

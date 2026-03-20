@@ -1,4 +1,3 @@
-import React from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { MovementsSummary } from '../../services/api'
 

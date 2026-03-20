@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
 import { SummaryCards } from './components/dashboard/SummaryCards'
@@ -18,8 +18,8 @@ export default function App() {
   const [activeView, setActiveView] = useState<'dashboard' | 'settings'>('dashboard')
   const [filters, setFilters] = useState<{ category_id?: number; type?: string; search?: string }>({})
 
-  const { months, loading: monthsLoading, refresh: refreshMonths, remove: removeMonth } = useMonths()
-  const { categories, refresh: refreshCategories, create: createCategory, update: updateCategory, remove: removeCategory } = useCategories()
+  const { months, refresh: refreshMonths, remove: removeMonth } = useMonths()
+  const { categories, create: createCategory, update: updateCategory, remove: removeCategory } = useCategories()
 
   const movementFilters = useMemo(() => ({
     month_id: activeMonthId ?? undefined,

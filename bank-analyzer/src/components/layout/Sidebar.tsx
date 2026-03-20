@@ -1,4 +1,3 @@
-import React from 'react'
 import { MonthWithStats } from '../../services/api'
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
