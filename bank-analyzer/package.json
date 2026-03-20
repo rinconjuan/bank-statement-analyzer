@@ -2,7 +2,7 @@
   "name": "bank-analyzer",
   "version": "1.0.0",
   "description": "Bank Statement Analyzer Desktop App",
-  "main": "electron-dist/electron/main.js",
+  "main": "electron-dist/main.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build && tsc -p electron/tsconfig.json",
