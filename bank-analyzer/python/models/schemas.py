@@ -53,6 +53,7 @@ class MovementCreate(MovementBase):
 class MovementUpdate(BaseModel):
     category_id: int | None = None
     note: str | None = None
+    applies_this_month: bool | None = None
 
 
 class Movement(MovementBase):
@@ -60,6 +61,7 @@ class Movement(MovementBase):
     month_id: int
     category_id: int | None = None
     note: str | None = None
+    applies_this_month: bool | None = None
     category: Category | None = None
     model_config = ConfigDict(from_attributes=True)
 

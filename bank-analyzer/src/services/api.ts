@@ -41,6 +41,7 @@ export interface Movement {
   type: 'Ingreso' | 'Egreso'
   category_id: number | null
   note: string | null
+  applies_this_month: boolean | null
   category: Category | null
 }
 
@@ -105,21 +106,25 @@ export async function uploadStatement(file: File, statementType: string = 'cuent
 }
 
 // Movements
-export const fetchMovements = (params: { month_id?: number; category_id?: number; type?: string; search?: string }) => {
+export const fetchMovements = (params: { month_id?: number; calendar_month?: string; category_id?: number; type?: string; search?: string }) => {
   const qs = new URLSearchParams()
   if (params.month_id != null) qs.set('month_id', String(params.month_id))
+  if (params.calendar_month) qs.set('calendar_month', params.calendar_month)
   if (params.category_id != null) qs.set('category_id', String(params.category_id))
   if (params.type) qs.set('type', params.type)
   if (params.search) qs.set('search', params.search)
   return request<Movement[]>(`/api/v1/movements?${qs}`)
 }
 
-export const updateMovement = (id: number, data: { category_id?: number | null; note?: string | null }) =>
+export const updateMovement = (id: number, data: { category_id?: number | null; note?: string | null; applies_this_month?: boolean | null }) =>
   request<Movement>(`/api/v1/movements/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
+
+export const fetchCalendarMonths = () =>
+  request<string[]>('/api/v1/movements/calendar-months')
 
 export const fetchSummary = (month_id?: number) => {
   const qs = month_id != null ? `?month_id=${month_id}` : ''

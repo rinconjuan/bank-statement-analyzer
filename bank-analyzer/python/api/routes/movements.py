@@ -14,6 +14,7 @@ router = APIRouter()
 @router.get('', response_model=list[MovementSchema])
 def get_movements(
     month_id: Optional[int] = Query(None),
+    calendar_month: Optional[str] = Query(None, description='Filter by calendar month YYYY-MM'),
     category_id: Optional[int] = Query(None),
     movement_type: Optional[str] = Query(None, alias='type'),
     search: Optional[str] = Query(None),
@@ -22,6 +23,13 @@ def get_movements(
     q = db.query(Movement)
     if month_id is not None:
         q = q.filter(Movement.month_id == month_id)
+    if calendar_month is not None:
+        # dates stored as DD/MM/YYYY — match /MM/YYYY suffix
+        try:
+            year, month = calendar_month.split('-')
+            q = q.filter(Movement.date.like(f'%/{month}/{year}'))
+        except ValueError:
+            pass
     if category_id is not None:
         q = q.filter(Movement.category_id == category_id)
     if movement_type is not None:
@@ -42,6 +50,8 @@ def update_movement(movement_id: int, update: MovementUpdate, db: Session = Depe
         save_user_rule(db, movement.description, update.category_id)
     if update.note is not None:
         movement.note = update.note
+    if update.applies_this_month is not None:
+        movement.applies_this_month = update.applies_this_month
     db.commit()
     db.refresh(movement)
     return movement
@@ -88,3 +98,17 @@ def get_summary(month_id: Optional[int] = Query(None), db: Session = Depends(get
         total_expenses=total_expenses,
         balance=total_income - total_expenses
     )
+
+
+@router.get('/calendar-months', response_model=list[str])
+def get_calendar_months(db: Session = Depends(get_db)):
+    """Return a sorted list of distinct YYYY-MM months found across all movement dates (DD/MM/YYYY)."""
+    rows = db.query(Movement.date).distinct().all()
+    months: set[str] = set()
+    for (date_str,) in rows:
+        if date_str and len(date_str) == 10:
+            # DD/MM/YYYY → YYYY-MM
+            parts = date_str.split('/')
+            if len(parts) == 3:
+                months.add(f'{parts[2]}-{parts[1]}')
+    return sorted(months, reverse=True)

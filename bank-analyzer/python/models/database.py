@@ -70,6 +70,7 @@ class Movement(Base):
     type = Column(String, nullable=False)
     category_id = Column(Integer, ForeignKey('categories.id', ondelete='SET NULL'), nullable=True)
     note = Column(Text, nullable=True)
+    applies_this_month = Column(Integer, nullable=True)  # NULL=unknown, 1=yes, 0=no
 
     __table_args__ = (CheckConstraint("type IN ('Ingreso', 'Egreso')", name='ck_movement_type'),)
 
@@ -231,6 +232,13 @@ def init_db():
                 db.commit()
             except Exception:
                 db.rollback()
+
+        # Add applies_this_month column to movements if it doesn't exist yet
+        try:
+            db.execute(text("ALTER TABLE movements ADD COLUMN applies_this_month INTEGER"))
+            db.commit()
+        except Exception:
+            db.rollback()  # column already exists – ignore
 
         # Migration: drop unique constraint (year, month) so that multiple statements
         # for the same month (e.g. savings account + credit card) can coexist.

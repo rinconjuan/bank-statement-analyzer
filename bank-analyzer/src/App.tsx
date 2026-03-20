@@ -4,6 +4,7 @@ import { TopBar } from './components/layout/TopBar'
 import { SummaryCards } from './components/dashboard/SummaryCards'
 import { CategoryChart } from './components/dashboard/CategoryChart'
 import { MonthlyChart } from './components/dashboard/MonthlyChart'
+import { CalendarMonthView } from './components/dashboard/CalendarMonthView'
 import { MovementsTable } from './components/movements/MovementsTable'
 import { UploadZone } from './components/upload/UploadZone'
 import { CategoryEditor } from './components/settings/CategoryEditor'
@@ -15,7 +16,7 @@ import { UploadResponse } from './services/api'
 export default function App() {
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null)
   const [showUpload, setShowUpload] = useState(false)
-  const [activeView, setActiveView] = useState<'dashboard' | 'settings'>('dashboard')
+  const [activeView, setActiveView] = useState<'dashboard' | 'por_mes' | 'settings'>('dashboard')
   const [filters, setFilters] = useState<{ category_id?: number; type?: string; search?: string }>({})
 
   const { months, refresh: refreshMonths, remove: removeMonth } = useMonths()
@@ -66,6 +67,8 @@ export default function App() {
               onUpdate={updateCategory}
               onDelete={removeCategory}
             />
+          ) : activeView === 'por_mes' ? (
+            <CalendarMonthView categories={categories} />
           ) : activeMonthId === null ? (
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <div className="text-6xl">🏦</div>
@@ -85,7 +88,13 @@ export default function App() {
             </div>
           ) : (
             <div className="space-y-6 max-w-7xl">
-              <SummaryCards summary={summary} statementType={activeMonth?.statement_type} minPayment={activeMonth?.min_payment} totalPayment={activeMonth?.total_payment} />
+              <SummaryCards
+                summary={summary}
+                statementType={activeMonth?.statement_type}
+                minPayment={activeMonth?.min_payment}
+                totalPayment={activeMonth?.total_payment}
+                movements={movements}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <CategoryChart summary={summary} />
                 <MonthlyChart months={months} />

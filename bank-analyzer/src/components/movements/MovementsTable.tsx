@@ -27,29 +27,32 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
   const handleType = (v: string) => { setTypeFilter(v); applyFilters(search, v, catFilter) }
   const handleCat = (v: number | undefined) => { setCatFilter(v); applyFilters(search, typeFilter, v) }
 
-  /** Aggregate totals per category from the currently visible movements */
+  /** Aggregate totals per category from the currently visible movements, split by type */
   const categoryTotals = useMemo(() => {
-    const map = new Map<string, { name: string; icon: string; color: string; total: number; count: number }>()
+    const map = new Map<string, { name: string; icon: string; color: string; income: number; expense: number; count: number }>()
     for (const m of movements) {
       const key = m.category?.name ?? 'Sin categoría'
       const existing = map.get(key)
       if (existing) {
-        existing.total += m.amount
+        if (m.type === 'Ingreso') existing.income += m.amount
+        else existing.expense += m.amount
         existing.count += 1
       } else {
         map.set(key, {
           name: key,
           icon: m.category?.icon ?? '📦',
           color: m.category?.color ?? '#94a3b8',
-          total: m.amount,
+          income: m.type === 'Ingreso' ? m.amount : 0,
+          expense: m.type === 'Egreso' ? m.amount : 0,
           count: 1,
         })
       }
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total)
+    return Array.from(map.values()).sort((a, b) => (b.income + b.expense) - (a.income + a.expense))
   }, [movements])
 
-  const grandTotal = useMemo(() => movements.reduce((s, m) => s + m.amount, 0), [movements])
+  const grandIncome = useMemo(() => movements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0), [movements])
+  const grandExpense = useMemo(() => movements.filter(m => m.type === 'Egreso').reduce((s, m) => s + m.amount, 0), [movements])
 
   return (
     <div className="flex gap-4 items-start">
@@ -131,6 +134,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
                     <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Monto</th>
                     <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Tipo</th>
                     <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Categoría</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-center" style={{ color: 'var(--text-muted)' }} title="Marcar si aplica para el pago de este mes">Aplica</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -152,7 +156,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
         <div
           className="rounded-xl p-4 flex-shrink-0"
           style={{
-            width: 220,
+            width: 240,
             background: 'var(--bg-secondary)',
             border: '1px solid var(--border)',
             position: 'sticky',
@@ -162,35 +166,57 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
           <div className="text-xs font-semibold mb-3" style={{ color: 'var(--text-secondary)' }}>
             Totales por categoría
           </div>
-          <div className="flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: 420 }}>
+          <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: 420 }}>
             {categoryTotals.map((cat) => (
-              <div key={cat.name} className="flex items-center gap-2 min-w-0">
-                <span
-                  className="flex-shrink-0 rounded-full"
-                  style={{ width: 8, height: 8, background: cat.color }}
-                />
-                <span
-                  className="text-xs flex-1 truncate"
-                  style={{ color: 'var(--text-secondary)' }}
-                  title={cat.name}
-                >
-                  {cat.icon} {cat.name}
-                </span>
-                <span className="text-xs font-medium flex-shrink-0" style={{ color: 'var(--text-primary)' }}>
-                  {formatAmount(cat.total)}
-                </span>
+              <div key={cat.name} className="min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="flex-shrink-0 rounded-full" style={{ width: 7, height: 7, background: cat.color }} />
+                  <span className="text-xs truncate flex-1" style={{ color: 'var(--text-secondary)' }} title={cat.name}>
+                    {cat.icon} {cat.name}
+                  </span>
+                </div>
+                <div className="flex gap-2 pl-3.5">
+                  {cat.income > 0 && (
+                    <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>
+                      +{formatAmount(cat.income)}
+                    </span>
+                  )}
+                  {cat.expense > 0 && (
+                    <span className="text-xs font-medium" style={{ color: 'var(--accent-red)' }}>
+                      -{formatAmount(cat.expense)}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
-          {/* Grand total divider */}
-          <div
-            className="mt-3 pt-3 flex items-center justify-between"
-            style={{ borderTop: '1px solid var(--border)' }}
-          >
-            <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Total</span>
-            <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
-              {formatAmount(grandTotal)}
-            </span>
+          {/* Totals divider */}
+          <div className="mt-3 pt-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
+            {grandIncome > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>↑ Ingresos</span>
+                <span className="text-xs font-semibold" style={{ color: 'var(--accent-green)' }}>
+                  {formatAmount(grandIncome)}
+                </span>
+              </div>
+            )}
+            {grandExpense > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>↓ Egresos</span>
+                <span className="text-xs font-semibold" style={{ color: 'var(--accent-red)' }}>
+                  {formatAmount(grandExpense)}
+                </span>
+              </div>
+            )}
+            <div className="flex items-center justify-between mt-0.5">
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Balance</span>
+              <span
+                className="text-xs font-bold"
+                style={{ color: grandIncome - grandExpense >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}
+              >
+                {formatAmount(grandIncome - grandExpense)}
+              </span>
+            </div>
           </div>
           <div className="mt-1 text-xs text-right" style={{ color: 'var(--text-muted)' }}>
             {movements.length} movimientos
