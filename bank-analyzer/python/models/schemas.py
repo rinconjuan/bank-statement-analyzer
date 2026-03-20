@@ -86,6 +86,8 @@ class MonthWithStats(Month):
     total_income: float
     total_expenses: float
     movements_count: int
+    min_payment: float | None = None
+    total_payment: float | None = None
 
 
 class UploadResponse(BaseModel):

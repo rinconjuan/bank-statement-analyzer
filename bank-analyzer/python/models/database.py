@@ -51,6 +51,8 @@ class Month(Base):
     file_name = Column(String, nullable=False)
     statement_type = Column(String, default='cuenta_ahorro')
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    min_payment = Column(Float, nullable=True)
+    total_payment = Column(Float, nullable=True)
 
     __table_args__ = (UniqueConstraint('year', 'month', name='uq_year_month'),)
 
@@ -218,6 +220,17 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()  # column already exists – ignore
+
+        # Add min_payment / total_payment columns to months if they don't exist yet
+        for col_ddl in (
+            "ALTER TABLE months ADD COLUMN min_payment FLOAT",
+            "ALTER TABLE months ADD COLUMN total_payment FLOAT",
+        ):
+            try:
+                db.execute(text(col_ddl))
+                db.commit()
+            except Exception:
+                db.rollback()
 
         # ── Seed / update categories ─────────────────────────────────────────
         # Always upsert so that keyword updates are applied to existing DBs

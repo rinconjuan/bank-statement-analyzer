@@ -33,7 +33,7 @@ async def upload_statement(
 
     try:
         pdf_password = password.strip() or None
-        movements_data, bank_name = parse_pdf(tmp_path, password=pdf_password)
+        movements_data, bank_name, pdf_meta = parse_pdf(tmp_path, password=pdf_password)
     except PDFPasswordRequiredError:
         raise HTTPException(422, detail='PDF_PASSWORD_REQUIRED')
     finally:
@@ -62,6 +62,8 @@ async def upload_statement(
         db_month.bank_name = bank_name
         db_month.file_name = file.filename or 'statement.pdf'
         db_month.statement_type = statement_type
+        db_month.min_payment = pdf_meta.get('min_payment')
+        db_month.total_payment = pdf_meta.get('total_payment')
         db.query(Movement).filter(Movement.month_id == db_month.id).delete()
     else:
         db_month = Month(
@@ -70,6 +72,8 @@ async def upload_statement(
             bank_name=bank_name,
             file_name=file.filename or 'statement.pdf',
             statement_type=statement_type,
+            min_payment=pdf_meta.get('min_payment'),
+            total_payment=pdf_meta.get('total_payment'),
         )
         db.add(db_month)
         db.flush()
@@ -118,7 +122,9 @@ def get_months(db: Session = Depends(get_db)):
             uploaded_at=m.uploaded_at,
             total_income=total_income,
             total_expenses=total_expenses,
-            movements_count=len(movements)
+            movements_count=len(movements),
+            min_payment=m.min_payment,
+            total_payment=m.total_payment,
         ))
     return result
 

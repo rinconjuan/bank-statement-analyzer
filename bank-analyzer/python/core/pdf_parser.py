@@ -1,5 +1,6 @@
 import pdfplumber
 import re
+from datetime import datetime
 from typing import Optional
 
 
@@ -73,14 +74,19 @@ def _is_doubled_text(s: str) -> bool:
     return pairs >= len(non_space) // 2 * 0.8
 
 
-def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], str]:
-    """Parse PDF and return (movements, bank_name).
+def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], str, dict]:
+    """Parse PDF and return (movements, bank_name, metadata).
+
+    metadata keys:
+      - min_payment:   float | None  (credit card minimum payment due)
+      - total_payment: float | None  (credit card total balance due)
 
     Raises PDFPasswordRequiredError if the file is encrypted and no password
     (or a wrong password) is supplied.
     """
     movements = []
     bank_name = 'generic'
+    metadata: dict = {'min_payment': None, 'total_payment': None}
 
     open_kwargs: dict = {}
     if password:
@@ -114,6 +120,9 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
         if bank_name == 'falabella':
             # Use the dedicated Falabella parser (text-based + table for split-line entries)
             movements = _parse_falabella(file_path, full_text, password=password)
+            metadata = _extract_falabella_metadata(full_text)
+        elif bank_name == 'davivienda':
+            movements = _parse_davivienda(file_path, full_text, password=password)
         else:
             # Generic path: try table extraction first, fall back to regex
             for page in pdf.pages:
@@ -141,7 +150,45 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
             seen.add(key)
             unique_movements.append(m)
 
-    return unique_movements, bank_name
+    return unique_movements, bank_name, metadata
+
+
+# ---------------------------------------------------------------------------
+# Falabella metadata extraction (pago total / pago mínimo)
+# ---------------------------------------------------------------------------
+
+def _extract_falabella_metadata(text: str) -> dict:
+    """Extract the total and minimum payment amounts from a Falabella credit card statement.
+
+    The PDF uses doubled characters for text (e.g. 'TTuu' = 'Tu') but normal
+    single digits for numbers.  Each line is decoded individually so that
+    keywords can be recognised while the numeric part is read from the original
+    line (decoding would corrupt repeated digits like '33' → '3').
+    """
+    metadata: dict = {'min_payment': None, 'total_payment': None}
+    for raw_line in text.split('\n'):
+        raw_line = raw_line.strip()
+        if '$' not in raw_line:
+            continue
+        decoded = re.sub(r'(.)\1', r'\1', raw_line).lower()
+        amt_m = re.search(r'\$\s*([\d.,]+)', raw_line)
+        if not amt_m:
+            continue
+        try:
+            amount = parse_amount(amt_m.group(1))
+        except Exception:
+            continue
+        if amount <= 0:
+            continue
+
+        if 'pago total' in decoded and metadata['total_payment'] is None:
+            metadata['total_payment'] = amount
+        elif ('pago' in decoded
+              and ('minimo' in decoded or 'mínimo' in decoded)
+              and metadata['min_payment'] is None):
+            metadata['min_payment'] = amount
+
+    return metadata
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +346,92 @@ def _parse_falabella_tables(file_path: str, password: str | None = None) -> list
 
                     mov_type = 'Ingreso' if amount < 0 else 'Egreso'
                     movements.append({'date': date, 'description': description, 'amount': abs(amount), 'type': mov_type})
+
+    return movements
+
+
+# ---------------------------------------------------------------------------
+# Davivienda savings/checking account parser
+# ---------------------------------------------------------------------------
+
+def _parse_davivienda(file_path: str, full_text: str, password: str | None = None) -> list[dict]:
+    """Parse a Banco Davivienda account statement.
+
+    Table columns: [day, month, '$amount+/-', doc_number, description, office]
+    The date year is extracted from the 'INFORME DEL MES' header line.
+    The 'EXTRACTO BOLSILLO' (pocket) section is skipped to avoid duplicates.
+    """
+    movements: list[dict] = []
+
+    # Extract statement year from header (e.g. 'INFORME DEL MES:FEBRERO /2026')
+    year_m = re.search(r'INFORME DEL MES[:\s]+\w+\s*/(\d{4})', full_text, re.IGNORECASE)
+    year = year_m.group(1) if year_m else str(datetime.now().year)
+
+    open_kwargs: dict = {}
+    if password:
+        open_kwargs['password'] = password
+
+    with pdfplumber.open(file_path, **open_kwargs) as pdf:
+        in_bolsillo = False
+        for page in pdf.pages:
+            for table in page.extract_tables():
+                for row in table:
+                    cells = [str(c).strip() if c is not None else '' for c in row]
+                    row_text = ' '.join(cells).upper()
+
+                    # Detect section header rows
+                    if 'EXTRACTO' in row_text and 'BOLSILLO' in row_text:
+                        in_bolsillo = True
+                        continue
+                    if 'EXTRACTO' in row_text and 'BOLSILLO' not in row_text:
+                        in_bolsillo = False
+                        continue
+
+                    if in_bolsillo:
+                        continue
+
+                    # Need at least: day, month, amount, doc, description
+                    if len(cells) < 5:
+                        continue
+
+                    day_str = cells[0]
+                    month_str = cells[1]
+                    amount_raw = cells[2]
+                    description = cells[4] if len(cells) > 4 else ''
+
+                    # Validate day and month are digits in valid ranges
+                    if not (day_str.isdigit() and month_str.isdigit()):
+                        continue
+                    day_i, month_i = int(day_str), int(month_str)
+                    if not (1 <= day_i <= 31 and 1 <= month_i <= 12):
+                        continue
+
+                    # Amount must end with '+' or '-'
+                    if not amount_raw or amount_raw[-1] not in ('+', '-'):
+                        continue
+
+                    # Skip header or label rows
+                    if description.lower() in ('clase de movimiento', 'oficina', 'fecha', 'valor', 'doc.', ''):
+                        continue
+
+                    sign = amount_raw[-1]
+                    amount_clean = amount_raw[:-1].strip().lstrip('$').strip()
+                    try:
+                        amount = parse_amount(amount_clean)
+                    except Exception:
+                        continue
+
+                    if amount == 0:
+                        continue
+
+                    date_str = f"{day_i:02d}/{month_i:02d}/{year}"
+                    mov_type = 'Ingreso' if sign == '+' else 'Egreso'
+                    movements.append({
+                        'date': date_str,
+                        'description': description,
+                        'amount': amount,
+                        'type': mov_type,
+                    })
 
     return movements
 

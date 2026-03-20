@@ -55,6 +55,8 @@ export interface MonthWithStats {
   total_income: number
   total_expenses: number
   movements_count: number
+  min_payment: number | null
+  total_payment: number | null
 }
 
 export interface UploadResponse {

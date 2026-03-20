@@ -85,7 +85,7 @@ export default function App() {
             </div>
           ) : (
             <div className="space-y-6 max-w-7xl">
-              <SummaryCards summary={summary} statementType={activeMonth?.statement_type} />
+              <SummaryCards summary={summary} statementType={activeMonth?.statement_type} minPayment={activeMonth?.min_payment} totalPayment={activeMonth?.total_payment} />
               <div className="grid grid-cols-2 gap-4">
                 <CategoryChart summary={summary} />
                 <MonthlyChart months={months} />
