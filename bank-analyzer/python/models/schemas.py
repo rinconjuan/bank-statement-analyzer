@@ -1,5 +1,6 @@
+import json
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class CategoryBase(BaseModel):
@@ -7,6 +8,17 @@ class CategoryBase(BaseModel):
     keywords: list[str]
     color: str = '#6366f1'
     icon: str = '📦'
+
+    @field_validator('keywords', mode='before')
+    @classmethod
+    def parse_keywords(cls, v: object) -> list:
+        """Accept a JSON string stored in the DB and deserialize it to a list."""
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v
 
 
 class CategoryCreate(CategoryBase):
