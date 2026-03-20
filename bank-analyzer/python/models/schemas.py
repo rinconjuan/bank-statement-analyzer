@@ -69,6 +69,7 @@ class MonthBase(BaseModel):
     month: int
     bank_name: str | None = None
     file_name: str
+    statement_type: str = 'cuenta_ahorro'
 
 
 class MonthCreate(MonthBase):

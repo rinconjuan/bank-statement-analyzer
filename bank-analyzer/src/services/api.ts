@@ -50,6 +50,7 @@ export interface MonthWithStats {
   month: number
   bank_name: string | null
   file_name: string
+  statement_type: string
   uploaded_at: string
   total_income: number
   total_expenses: number
@@ -85,9 +86,10 @@ export const fetchMonths = () => request<MonthWithStats[]>('/api/v1/statements/m
 export const deleteMonth = (id: number) => request<{ ok: boolean }>(`/api/v1/statements/months/${id}`, { method: 'DELETE' })
 
 // Upload
-export async function uploadStatement(file: File): Promise<UploadResponse> {
+export async function uploadStatement(file: File, statementType: string = 'cuenta_ahorro'): Promise<UploadResponse> {
   const form = new FormData()
   form.append('file', file)
+  form.append('statement_type', statementType)
   const url = `${getBaseUrl()}/api/v1/statements/upload`
   const res = await fetch(url, { method: 'POST', body: form })
   if (!res.ok) {

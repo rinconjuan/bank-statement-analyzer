@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 import tempfile
 import os
@@ -13,9 +13,17 @@ router = APIRouter()
 
 
 @router.post('/upload', response_model=UploadResponse)
-async def upload_statement(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_statement(
+    file: UploadFile = File(...),
+    statement_type: str = Form('cuenta_ahorro'),
+    db: Session = Depends(get_db),
+):
     if not file.filename or not file.filename.lower().endswith('.pdf'):
         raise HTTPException(400, 'Only PDF files are accepted')
+
+    valid_types = {'cuenta_ahorro', 'tarjeta_credito', 'tarjeta_debito'}
+    if statement_type not in valid_types:
+        statement_type = 'cuenta_ahorro'
 
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
         content = await file.read()
@@ -49,13 +57,15 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
         db_month = existing
         db_month.bank_name = bank_name
         db_month.file_name = file.filename or 'statement.pdf'
+        db_month.statement_type = statement_type
         db.query(Movement).filter(Movement.month_id == db_month.id).delete()
     else:
         db_month = Month(
             year=year,
             month=month_num,
             bank_name=bank_name,
-            file_name=file.filename or 'statement.pdf'
+            file_name=file.filename or 'statement.pdf',
+            statement_type=statement_type,
         )
         db.add(db_month)
         db.flush()
@@ -73,7 +83,7 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
     db.commit()
     db.refresh(db_month)
 
-    auto_categorize_movements(db, db_month.id)
+    auto_categorize_movements(db, db_month.id, db_month.statement_type)
 
     preview_mvs = db.query(Movement).filter(Movement.month_id == db_month.id).limit(10).all()
 
@@ -100,6 +110,7 @@ def get_months(db: Session = Depends(get_db)):
             month=m.month,
             bank_name=m.bank_name,
             file_name=m.file_name,
+            statement_type=m.statement_type or 'cuenta_ahorro',
             uploaded_at=m.uploaded_at,
             total_income=total_income,
             total_expenses=total_expenses,

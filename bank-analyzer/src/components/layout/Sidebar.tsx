@@ -2,6 +2,12 @@ import { MonthWithStats } from '../../services/api'
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
+const STATEMENT_TYPE_ICON: Record<string, string> = {
+  cuenta_ahorro: '🏦',
+  tarjeta_credito: '💳',
+  tarjeta_debito: '💴',
+}
+
 interface SidebarProps {
   months: MonthWithStats[]
   activeMonthId: number | null
@@ -95,7 +101,7 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
                     className="text-sm font-medium truncate"
                     style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-primary)' }}
                   >
-                    {MONTH_NAMES[m.month - 1]} {m.year}
+                    {STATEMENT_TYPE_ICON[m.statement_type] ?? '🏦'} {MONTH_NAMES[m.month - 1]} {m.year}
                   </div>
                   <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
                     {m.movements_count} movs

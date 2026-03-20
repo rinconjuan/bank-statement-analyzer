@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, Text,
-    DateTime, ForeignKey, UniqueConstraint, CheckConstraint
+    DateTime, ForeignKey, UniqueConstraint, CheckConstraint, text
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
@@ -35,6 +35,7 @@ class Month(Base):
     month = Column(Integer, nullable=False)
     bank_name = Column(String, nullable=True)
     file_name = Column(String, nullable=False)
+    statement_type = Column(String, default='cuenta_ahorro')
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint('year', 'month', name='uq_year_month'),)
@@ -69,14 +70,123 @@ def get_db():
 
 
 DEFAULT_CATEGORIES = [
-    {'name': 'Salario',       'keywords': ['salario', 'sueldo', 'pago', 'compensación'],             'color': '#22c55e', 'icon': '💼'},
-    {'name': 'Transferencia', 'keywords': ['transferencia', 'envío', 'giro'],                         'color': '#3b82f6', 'icon': '↔️'},
-    {'name': 'Compras',       'keywords': ['compra', 'tienda', 'comercio', 'retail'],                 'color': '#f59e0b', 'icon': '🛍️'},
-    {'name': 'Servicios',     'keywords': ['luz', 'agua', 'gas', 'internet', 'teléfono'],             'color': '#8b5cf6', 'icon': '⚡'},
-    {'name': 'Comisiones',    'keywords': ['comisión', 'comisiones', 'mantenimiento'],                'color': '#ef4444', 'icon': '🏦'},
-    {'name': 'Restaurantes',  'keywords': ['restaurante', 'café', 'comida', 'delivery'],              'color': '#f97316', 'icon': '🍽️'},
-    {'name': 'Transporte',    'keywords': ['taxi', 'uber', 'metro', 'gasolina', 'peaje'],             'color': '#06b6d4', 'icon': '🚗'},
-    {'name': 'Otros',         'keywords': [],                                                          'color': '#94a3b8', 'icon': '📦'},
+    # ── Salary / income ─────────────────────────────────────────────────────
+    {'name': 'Salario',              'keywords': ['salario', 'sueldo', 'nomina', 'honorarios'],
+     'color': '#22c55e', 'icon': '💼'},
+
+    # ── Credit-card payments (Ingresos on tarjeta extracto) ──────────────────
+    {'name': 'Pago/Abono Tarjeta',   'keywords': [
+        'abono tarjeta', 'pago tarjeta', 'pago tc', 'abono pago',
+        'mastercard intern', 'abono compra mastercard',
+    ], 'color': '#14b8a6', 'icon': '💳'},
+
+    # ── Telecomunicaciones ───────────────────────────────────────────────────
+    {'name': 'Telecomunicaciones',   'keywords': [
+        'comcel', 'claro', 'movistar', 'tigo', 'wom ', 'etb', 'une ',
+        'telefonica', 'telecomunicaciones',
+    ], 'color': '#8b5cf6', 'icon': '📱'},
+
+    # ── Streaming ────────────────────────────────────────────────────────────
+    {'name': 'Streaming',            'keywords': [
+        'netflix', 'spotify', 'youtube premium', 'twitch', 'hbo', 'disney',
+        'amazon prime', 'apple.com', 'apple com', 'apple tv', 'crunchyroll',
+        'deezer', 'paramount', 'star+', 'directv go', 'claro video',
+    ], 'color': '#ec4899', 'icon': '🎬'},
+
+    # ── Video games ──────────────────────────────────────────────────────────
+    {'name': 'Videojuegos',          'keywords': [
+        'steam', 'riotgames', 'riot games', 'epicgames', 'epic games',
+        'playstation', 'xbox', 'nintendo', 'blizzard', 'ubisoft',
+        'roblox', 'battlenet', 'battle.net', 'activision', 'ea games',
+    ], 'color': '#6366f1', 'icon': '🎮'},
+
+    # ── Fuel ─────────────────────────────────────────────────────────────────
+    {'name': 'Combustible',          'keywords': [
+        'eds ', 'terpel', 'biomax', 'primax', 'zeuss', 'combustible',
+        'combuscol', 'gasolinera', 'estacion de servicio',
+    ], 'color': '#d97706', 'icon': '⛽'},
+
+    # ── Groceries / supermarkets ─────────────────────────────────────────────
+    {'name': 'Mercado/Alimentación', 'keywords': [
+        'surtimax', 'tienda d1', 'd1 ', 'tienda ara', 'ara ',
+        'exito', 'carulla', 'jumbo', 'metro grandes',
+        'alkosto', 'colsubsidio', 'mercando', 'supermercado',
+        'mercado donde', 'fruver', 'minimercado', 'raptiendas',
+        'la 14', 'grandes superficies',
+    ], 'color': '#16a34a', 'icon': '🛒'},
+
+    # ── Health / pharmacy ────────────────────────────────────────────────────
+    {'name': 'Salud/Farmacia',       'keywords': [
+        'drogueria', 'farmacia', 'drogas', 'clinica',
+        'hospital', 'laboratorio', 'medico',
+        'odontologia', 'dental', 'audifarma', 'copidrogas', 'cafam salud',
+        'colsanitas', 'sanitas', 'compensar salud',
+    ], 'color': '#ef4444', 'icon': '💊'},
+
+    # ── Pets ─────────────────────────────────────────────────────────────────
+    {'name': 'Mascotas',             'keywords': [
+        'puppis', 'puppies', 'petco', 'agrocampo', 'veterinaria',
+        'vetlog', 'mascotas', 'petshop', 'pet shop', 'animalitos',
+        'clinica veterinaria', 'animalia',
+    ], 'color': '#fb923c', 'icon': '🐾'},
+
+    # ── Gifts / flowers ──────────────────────────────────────────────────────
+    {'name': 'Regalos',              'keywords': [
+        'flores', 'floristeria', 'floresyflores',
+        'regalolandia', 'regalo',
+    ], 'color': '#e879f9', 'icon': '🎁'},
+
+    # ── Insurance ────────────────────────────────────────────────────────────
+    {'name': 'Seguros',              'keywords': [
+        'seguro vida', 'vida deudor', 'cobro seguro', 'seguro obligatorio',
+        'poliza', 'prima seguro', 'seguro deudor',
+    ], 'color': '#0ea5e9', 'icon': '🛡️'},
+
+    # ── Restaurants / food delivery ──────────────────────────────────────────
+    {'name': 'Restaurantes',         'keywords': [
+        'restaurante', 'restaurant', 'cafeteria', 'comida',
+        'delivery', 'rappi', 'ifood', 'domino', 'mcdonalds', 'mc donalds',
+        'subway', 'burger', 'pizza', 'kfc', 'frisby', 'el corral',
+        'crepes', 'asadero', 'panaderia', 'heladeria',
+        'sushi', 'tacos', 'wok', 'hacienda', 'andres dc',
+    ], 'color': '#f97316', 'icon': '🍽️'},
+
+    # ── Transport ────────────────────────────────────────────────────────────
+    {'name': 'Transporte',           'keywords': [
+        'uber', 'taxi', 'metro ', 'peaje', 'indrive', 'indrives',
+        'cabify', 'beat ', 'sitp', 'transmilenio', 'parqueadero',
+        'parking', 'gasolina', 'mototaxi',
+    ], 'color': '#06b6d4', 'icon': '🚗'},
+
+    # ── General shopping ─────────────────────────────────────────────────────
+    {'name': 'Compras',              'keywords': [
+        'amazon', 'mercadolibre', 'linio', 'adidas', 'nike', 'zara',
+        'h&m', 'falabella tienda', 'ripley', 'homecenter', 'easy ',
+        'ikea', 'retail', 'almacen', 'comercio',
+    ], 'color': '#f59e0b', 'icon': '🛍️'},
+
+    # ── Utilities (domiciliary services) ─────────────────────────────────────
+    {'name': 'Servicios',            'keywords': [
+        'epm', 'codensa', 'acueducto', 'energia electrica',
+        'gas domiciliario', 'internet hogar', 'tv por cable',
+        'directv', 'canal une', 'aire acondicionado', 'recibo de luz',
+    ], 'color': '#7c3aed', 'icon': '⚡'},
+
+    # ── Bank fees ────────────────────────────────────────────────────────────
+    {'name': 'Comisiones',           'keywords': [
+        'comision', 'comisiones', 'mantenimiento cuenta',
+        'cuota manejo', '4x1000', 'gravamen', 'retencion',
+    ], 'color': '#dc2626', 'icon': '🏦'},
+
+    # ── Transfers ────────────────────────────────────────────────────────────
+    {'name': 'Transferencia',        'keywords': [
+        'transferencia', 'envio', 'giro', 'nequi', 'daviplata',
+        'bold', 'wompi', 'transfiya',
+    ], 'color': '#3b82f6', 'icon': '↔️'},
+
+    # ── Fallback ─────────────────────────────────────────────────────────────
+    {'name': 'Otros',                'keywords': [],
+     'color': '#94a3b8', 'icon': '📦'},
 ]
 
 
@@ -85,12 +195,29 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        # ── Schema migrations ────────────────────────────────────────────────
+        # Add statement_type column to months if it doesn't exist yet
+        try:
+            db.execute(text(
+                "ALTER TABLE months ADD COLUMN statement_type VARCHAR DEFAULT 'cuenta_ahorro'"
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()  # column already exists – ignore
+
+        # ── Seed / update categories ─────────────────────────────────────────
+        # Always upsert so that keyword updates are applied to existing DBs
         for cat_data in DEFAULT_CATEGORIES:
+            keywords_json = _json.dumps(cat_data['keywords'], ensure_ascii=False)
             exists = db.query(Category).filter(Category.name == cat_data['name']).first()
-            if not exists:
+            if exists:
+                exists.keywords = keywords_json
+                exists.color = cat_data['color']
+                exists.icon = cat_data['icon']
+            else:
                 cat = Category(
                     name=cat_data['name'],
-                    keywords=_json.dumps(cat_data['keywords'], ensure_ascii=False),
+                    keywords=keywords_json,
                     color=cat_data['color'],
                     icon=cat_data['icon'],
                 )

@@ -6,11 +6,18 @@ interface UploadZoneProps {
   onCancel: () => void
 }
 
+const STATEMENT_TYPES = [
+  { value: 'cuenta_ahorro',   label: 'Cuenta de Ahorro',  icon: '🏦' },
+  { value: 'tarjeta_credito', label: 'Tarjeta de Crédito', icon: '💳' },
+  { value: 'tarjeta_debito',  label: 'Tarjeta Débito',    icon: '💴' },
+]
+
 export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<UploadResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [statementType, setStatementType] = useState('cuenta_ahorro')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback(async (file: File) => {
@@ -21,14 +28,14 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
     setUploading(true)
     setError(null)
     try {
-      const result = await uploadStatement(file)
+      const result = await uploadStatement(file, statementType)
       setPreview(result)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar el archivo')
     } finally {
       setUploading(false)
     }
-  }, [])
+  }, [statementType])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -38,6 +45,8 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
   }, [handleFile])
 
   const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+  const selectedType = STATEMENT_TYPES.find(t => t.value === statementType)!
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.6)' }}>
@@ -59,6 +68,30 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
 
         {!preview ? (
           <>
+            {/* Statement type selector */}
+            <div className="mb-4">
+              <div className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+                Tipo de extracto
+              </div>
+              <div className="flex gap-2">
+                {STATEMENT_TYPES.map(t => (
+                  <button
+                    key={t.value}
+                    onClick={() => setStatementType(t.value)}
+                    className="flex-1 flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-xs font-medium transition-all"
+                    style={{
+                      background: statementType === t.value ? 'rgba(79,127,255,0.15)' : 'var(--bg-tertiary)',
+                      border: statementType === t.value ? '1px solid rgba(79,127,255,0.5)' : '1px solid var(--border)',
+                      color: statementType === t.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                    }}
+                  >
+                    <span className="text-base">{t.icon}</span>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div
               onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
               onDragLeave={() => setDragging(false)}
@@ -70,12 +103,12 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
                 background: dragging ? 'rgba(79,127,255,0.05)' : 'var(--bg-tertiary)',
               }}
             >
-              <div className="text-4xl mb-3">{uploading ? '⏳' : '📄'}</div>
+              <div className="text-4xl mb-3">{uploading ? '⏳' : selectedType.icon}</div>
               <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
                 {uploading ? 'Procesando...' : 'Arrastra tu PDF aquí'}
               </div>
               <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                o haz clic para seleccionar
+                {uploading ? '' : `${selectedType.label} · haz clic para seleccionar`}
               </div>
             </div>
             <input
@@ -101,7 +134,7 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
                     {MONTH_NAMES[preview.month - 1]} {preview.year}
                   </div>
                   <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {preview.movements_count} movimientos encontrados
+                    {preview.movements_count} movimientos encontrados · {selectedType.icon} {selectedType.label}
                   </div>
                 </div>
               </div>
