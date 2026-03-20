@@ -36,7 +36,12 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
       if (msg === 'PDF_PASSWORD_REQUIRED') {
         setPendingFile(file)
         setPasswordMode(true)
-        setError(null)
+        // If we already tried a password, show "wrong password" message
+        if (pwd) {
+          setError('Contraseña incorrecta. Inténtalo de nuevo.')
+        } else {
+          setError(null)
+        }
       } else {
         setError(msg)
       }

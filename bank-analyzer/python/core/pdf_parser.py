@@ -89,11 +89,16 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
     try:
         pdf_ctx = pdfplumber.open(file_path, **open_kwargs)
     except Exception as exc:
-        # pdfplumber / pdfminer raises various exceptions for encrypted PDFs:
-        # pdfminer.pdfdocument.PDFPasswordIncorrect  (wrong or empty password)
-        # pdfminer.pdfpage.PDFTextExtractionNotAllowed  (some locked PDFs)
+        # pdfplumber wraps pdfminer exceptions in PdfminerException on some builds.
+        # We also match the raw pdfminer exception names for environments where the
+        # wrapper is not used (older pdfplumber versions).
+        # Recognised exception class names:
+        #   pdfminer.pdfdocument.PDFPasswordIncorrect
+        #   pdfminer.pdfpage.PDFTextExtractionNotAllowed
+        #   pdfplumber.utils.exceptions.PdfminerException  (Windows / newer pdfplumber)
         exc_name = type(exc).__name__
-        if exc_name in ('PDFPasswordIncorrect', 'PDFTextExtractionNotAllowed') or \
+        if exc_name in ('PDFPasswordIncorrect', 'PDFTextExtractionNotAllowed',
+                        'PdfminerException') or \
                 'password' in str(exc).lower() or 'encrypt' in str(exc).lower():
             raise PDFPasswordRequiredError('PDF is password-protected') from exc
         raise
