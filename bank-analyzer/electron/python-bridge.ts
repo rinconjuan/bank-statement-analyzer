@@ -1,10 +1,21 @@
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, ChildProcess, execSync } from 'child_process'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
 
 const PORT_FILE = path.join(os.tmpdir(), 'bank_analyzer_port.json')
 const isDev = process.env.NODE_ENV === 'development' || !require('electron').app.isPackaged
+
+/** Returns the first Python interpreter found on PATH. */
+function findPython(): string {
+  for (const cmd of ['python3', 'python']) {
+    try {
+      execSync(`${cmd} --version`, { stdio: 'ignore' })
+      return cmd
+    } catch (_) {}
+  }
+  throw new Error('Python interpreter not found. Install Python 3 and ensure it is on your PATH.')
+}
 
 export class PythonBridge {
   private process: ChildProcess | null = null
@@ -14,7 +25,7 @@ export class PythonBridge {
     try { fs.unlinkSync(PORT_FILE) } catch (_) {}
 
     const pythonPath = isDev
-      ? 'python3'
+      ? findPython()
       : path.join(process.resourcesPath, 'python', 'main')
 
     const scriptPath = isDev

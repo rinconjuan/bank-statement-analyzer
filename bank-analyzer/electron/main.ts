@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import * as path from 'path'
+import * as http from 'http'
 import { PythonBridge } from './python-bridge'
 import { registerIpcHandlers } from './ipc-handlers'
 
@@ -7,6 +8,31 @@ let mainWindow: BrowserWindow | null = null
 let pythonBridge: PythonBridge | null = null
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+
+/** Poll /health until the backend responds 200 or we time out. */
+function waitForHealth(port: number, maxWait = 15000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const start = Date.now()
+    const check = () => {
+      if (Date.now() - start > maxWait) {
+        reject(new Error(`Backend health check timed out after ${maxWait}ms`))
+        return
+      }
+      const req = http.get(`http://127.0.0.1:${port}/health`, (res) => {
+        if (res.statusCode === 200) {
+          res.resume()
+          resolve()
+        } else {
+          res.resume()
+          setTimeout(check, 300)
+        }
+      })
+      req.on('error', () => setTimeout(check, 300))
+      req.end()
+    }
+    check()
+  })
+}
 
 async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
@@ -30,7 +56,8 @@ async function createWindow(): Promise<void> {
 
   try {
     port = await pythonBridge.start()
-    console.log(`Python backend running on port ${port}`)
+    await waitForHealth(port)
+    console.log(`Python backend ready on port ${port}`)
   } catch (err) {
     console.error('Failed to start Python backend:', err)
     port = 8000

@@ -14,6 +14,11 @@ sys.path.insert(0, os.path.dirname(__file__))
 from models.database import init_db
 from api.routes import statements, movements, categories, export
 
+# These are set in __main__ before uvicorn starts, and read inside the
+# lifespan handler which runs after the socket is bound and listening.
+_port: int = 0
+_port_file: str = ''
+
 
 def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -25,6 +30,12 @@ def find_free_port() -> int:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Write the port file here — server socket is already bound and
+    # accepting connections, so Electron won't race ahead of us.
+    if _port and _port_file:
+        with open(_port_file, 'w') as f:
+            json.dump({'port': _port}, f)
+        print(f'Backend ready on port {_port}', flush=True)
     yield
 
 
@@ -50,12 +61,9 @@ def health():
 
 
 if __name__ == '__main__':
-    port = find_free_port()
+    _port = find_free_port()
+    _port_file = os.environ.get('PORT_FILE', os.path.join(tempfile.gettempdir(), 'bank_analyzer_port.json'))
 
-    port_file = os.environ.get('PORT_FILE', os.path.join(tempfile.gettempdir(), 'bank_analyzer_port.json'))
-    with open(port_file, 'w') as f:
-        json.dump({'port': port}, f)
+    print(f'Starting on port {_port}', flush=True)
 
-    print(f'Starting on port {port}', flush=True)
-
-    uvicorn.run(app, host='127.0.0.1', port=port, log_level='error')
+    uvicorn.run(app, host='127.0.0.1', port=_port, log_level='error')

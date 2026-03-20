@@ -4,7 +4,8 @@
   "description": "Bank Statement Analyzer Desktop App",
   "main": "electron-dist/main.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "node_modules/.bin/tsc -p electron/tsconfig.json && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "backend": "cd python && python3 main.py",
     "build": "vite build && tsc -p electron/tsconfig.json",
     "electron:build": "electron-builder",
     "preview": "vite preview"
