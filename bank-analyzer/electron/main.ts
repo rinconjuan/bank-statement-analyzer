@@ -63,7 +63,10 @@ async function createWindow(): Promise<void> {
     port = 8000
   }
 
-  // Pass port to renderer
+  // Expose port globally so the IPC 'get:apiPort' handler can read it.
+  ;(global as unknown as Record<string, unknown>).API_PORT = port
+
+  // Also inject into renderer on every navigation as a fallback.
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow?.webContents.executeJavaScript(
       `window.API_PORT = ${port};`
