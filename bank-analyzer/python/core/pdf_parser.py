@@ -414,6 +414,11 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
                     if description.lower() in ('clase de movimiento', 'oficina', 'fecha', 'valor', 'doc.', ''):
                         continue
 
+                    # Skip bolsillo (pocket) movements – they are internal transfers between
+                    # the main account balance and the savings pocket, not real income/expense.
+                    if 'bolsillo' in description.lower():
+                        continue
+
                     sign = amount_raw[-1]
                     amount_clean = amount_raw[:-1].strip().lstrip('$').strip()
                     try:

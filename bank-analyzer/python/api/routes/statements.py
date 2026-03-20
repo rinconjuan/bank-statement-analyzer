@@ -56,27 +56,17 @@ async def upload_statement(
         now = datetime.now()
         month_num, year = now.month, now.year
 
-    existing = db.query(Month).filter(Month.year == year, Month.month == month_num).first()
-    if existing:
-        db_month = existing
-        db_month.bank_name = bank_name
-        db_month.file_name = file.filename or 'statement.pdf'
-        db_month.statement_type = statement_type
-        db_month.min_payment = pdf_meta.get('min_payment')
-        db_month.total_payment = pdf_meta.get('total_payment')
-        db.query(Movement).filter(Movement.month_id == db_month.id).delete()
-    else:
-        db_month = Month(
-            year=year,
-            month=month_num,
-            bank_name=bank_name,
-            file_name=file.filename or 'statement.pdf',
-            statement_type=statement_type,
-            min_payment=pdf_meta.get('min_payment'),
-            total_payment=pdf_meta.get('total_payment'),
-        )
-        db.add(db_month)
-        db.flush()
+    db_month = Month(
+        year=year,
+        month=month_num,
+        bank_name=bank_name,
+        file_name=file.filename or 'statement.pdf',
+        statement_type=statement_type,
+        min_payment=pdf_meta.get('min_payment'),
+        total_payment=pdf_meta.get('total_payment'),
+    )
+    db.add(db_month)
+    db.flush()
 
     for m_data in movements_data:
         mv = Movement(

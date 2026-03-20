@@ -54,7 +54,7 @@ class Month(Base):
     min_payment = Column(Float, nullable=True)
     total_payment = Column(Float, nullable=True)
 
-    __table_args__ = (UniqueConstraint('year', 'month', name='uq_year_month'),)
+    __table_args__ = ()
 
     movements = relationship('Movement', back_populates='month_rel', cascade='all, delete-orphan')
 
@@ -231,6 +231,40 @@ def init_db():
                 db.commit()
             except Exception:
                 db.rollback()
+
+        # Migration: drop unique constraint (year, month) so that multiple statements
+        # for the same month (e.g. savings account + credit card) can coexist.
+        # SQLite does not support DROP CONSTRAINT – we recreate the table without it.
+        try:
+            row = db.execute(
+                text("SELECT sql FROM sqlite_master WHERE type='table' AND name='months'")
+            ).fetchone()
+            if row and row[0] and 'uq_year_month' in row[0]:
+                db.execute(text("""
+                    CREATE TABLE months_migration (
+                        id    INTEGER NOT NULL PRIMARY KEY,
+                        year  INTEGER NOT NULL,
+                        month INTEGER NOT NULL,
+                        bank_name     VARCHAR,
+                        file_name     VARCHAR NOT NULL,
+                        statement_type VARCHAR DEFAULT 'cuenta_ahorro',
+                        uploaded_at   DATETIME,
+                        min_payment   FLOAT,
+                        total_payment FLOAT
+                    )
+                """))
+                db.execute(text("""
+                    INSERT INTO months_migration
+                        (id, year, month, bank_name, file_name, statement_type, uploaded_at, min_payment, total_payment)
+                    SELECT id, year, month, bank_name, file_name, statement_type, uploaded_at, min_payment, total_payment
+                    FROM months
+                """))
+                db.execute(text("DROP TABLE months"))
+                db.execute(text("ALTER TABLE months_migration RENAME TO months"))
+                db.execute(text("CREATE INDEX IF NOT EXISTS ix_months_id ON months (id)"))
+                db.commit()
+        except Exception:
+            db.rollback()
 
         # ── Seed / update categories ─────────────────────────────────────────
         # Always upsert so that keyword updates are applied to existing DBs

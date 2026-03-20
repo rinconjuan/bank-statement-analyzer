@@ -102,8 +102,8 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
                   >
                     {STATEMENT_TYPE_ICON[m.statement_type] ?? '🏦'} {MONTH_NAMES[m.month - 1]} {m.year}
                   </div>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {m.movements_count} movs
+                  <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                    {m.bank_name ? `${m.bank_name} · ` : ''}{m.movements_count} movs
                   </div>
                 </div>
                 <button
