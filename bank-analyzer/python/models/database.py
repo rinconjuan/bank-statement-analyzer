@@ -68,5 +68,33 @@ def get_db():
         db.close()
 
 
+DEFAULT_CATEGORIES = [
+    {'name': 'Salario',       'keywords': ['salario', 'sueldo', 'pago', 'compensación'],             'color': '#22c55e', 'icon': '💼'},
+    {'name': 'Transferencia', 'keywords': ['transferencia', 'envío', 'giro'],                         'color': '#3b82f6', 'icon': '↔️'},
+    {'name': 'Compras',       'keywords': ['compra', 'tienda', 'comercio', 'retail'],                 'color': '#f59e0b', 'icon': '🛍️'},
+    {'name': 'Servicios',     'keywords': ['luz', 'agua', 'gas', 'internet', 'teléfono'],             'color': '#8b5cf6', 'icon': '⚡'},
+    {'name': 'Comisiones',    'keywords': ['comisión', 'comisiones', 'mantenimiento'],                'color': '#ef4444', 'icon': '🏦'},
+    {'name': 'Restaurantes',  'keywords': ['restaurante', 'café', 'comida', 'delivery'],              'color': '#f97316', 'icon': '🍽️'},
+    {'name': 'Transporte',    'keywords': ['taxi', 'uber', 'metro', 'gasolina', 'peaje'],             'color': '#06b6d4', 'icon': '🚗'},
+    {'name': 'Otros',         'keywords': [],                                                          'color': '#94a3b8', 'icon': '📦'},
+]
+
+
 def init_db():
+    import json as _json
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        for cat_data in DEFAULT_CATEGORIES:
+            exists = db.query(Category).filter(Category.name == cat_data['name']).first()
+            if not exists:
+                cat = Category(
+                    name=cat_data['name'],
+                    keywords=_json.dumps(cat_data['keywords'], ensure_ascii=False),
+                    color=cat_data['color'],
+                    icon=cat_data['icon'],
+                )
+                db.add(cat)
+        db.commit()
+    finally:
+        db.close()
