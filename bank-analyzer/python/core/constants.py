@@ -25,3 +25,16 @@ SALARY_KEYWORDS: tuple[str, ...] = (
 
 # Minimum amount (COP) for an income movement to be considered a salary.
 SALARY_MIN_AMOUNT: float = 1_000_000.0
+
+# Keywords identifying internal Davivienda "Bolsillo" pocket movements.
+# These represent internal transfers between the main account balance and the
+# savings pocket — NOT real external income or expenses — and must be excluded
+# from every financial summary to avoid double-counting.
+# 'bolsillo' is intentionally generic to catch every known variant:
+#   e.g. "TRASLADO AL BOLSILLO AHORRO", "DÉBITO AUTOMÁTICO BOLSILLO", etc.
+# Mirrored in pdf_parser.py (parser-time filter) and the React frontend (display filter).
+INTERNAL_MOVEMENT_KEYWORDS: tuple[str, ...] = (
+    'bolsillo',                 # catches any pocket variant
+    'traslado rendimientos',
+    'abono rendimientos netos',
+)

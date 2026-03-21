@@ -13,7 +13,7 @@ from models.schemas import (
 )
 from core.constants import (
     FIXED_CHARGE_KEYWORDS, FALABELLA_PAYMENT_KEYWORDS,
-    SALARY_KEYWORDS, SALARY_MIN_AMOUNT,
+    SALARY_KEYWORDS, SALARY_MIN_AMOUNT, INTERNAL_MOVEMENT_KEYWORDS,
 )
 
 router = APIRouter()
@@ -25,15 +25,8 @@ _MONTH_NAMES_ES = [
 
 # Keywords identifying internal bolsillo/pocket movements that should NOT count
 # as real expenses or income in the monthly balance.
-# 'bolsillo' is intentionally generic — it catches every known variant
-# (débito automático al bolsillo, transferencia desde/hacia bolsillo, etc.)
-# 'rendimientos financieros' is intentionally NOT listed here because those are
-# real earnings that enter the account and must be counted as income.
-_INTERNAL_MOVEMENT_KEYWORDS = (
-    'bolsillo',                 # catches any movement containing this word
-    'traslado rendimientos',
-    'abono rendimientos netos',
-)
+# Imported from core/constants.py — single source of truth shared across the backend.
+_INTERNAL_MOVEMENT_KEYWORDS = INTERNAL_MOVEMENT_KEYWORDS
 
 # Expense classification groups for the QUÉ SALIÓ breakdown.
 # Order matters: first match wins. 'otras_compras' is the fallback.
