@@ -177,13 +177,26 @@ def _extract_falabella_metadata(text: str) -> dict:
     }
 
     _ES_MONTHS_SHORT = {
+        # Abbreviated (3-letter) forms
         'ene': 1, 'feb': 2, 'mar': 3, 'abr': 4, 'may': 5, 'jun': 6,
         'jul': 7, 'ago': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dic': 12,
+        # Full names (in case the PDF text is not abbreviated)
+        'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5,
+        'junio': 6, 'julio': 7, 'agosto': 8, 'septiembre': 9,
+        'octubre': 10, 'noviembre': 11, 'diciembre': 12,
     }
 
     def _parse_es_date(s: str) -> 'str | None':
-        """Convert 'DD mmm YYYY' (in decoded string) to 'DD/MM/YYYY'."""
-        m = re.search(r'(\d{1,2})\s+([a-záéíóú]{3,})\s+(\d{4})', s)
+        """Convert 'DD mmm YYYY' (in decoded string) to 'DD/MM/YYYY'.
+
+        Normalises multiple/collapsed spaces first so that doubled characters
+        in folded PDF text (e.g. '14  e n e  2026' → '14 e n e 2026') are
+        collapsed before the regex runs.  The regex is intentionally permissive
+        with whitespace between tokens to handle residual spacing artefacts.
+        """
+        # Collapse any run of whitespace to a single space
+        s = re.sub(r'\s+', ' ', s.strip())
+        m = re.search(r'(\d{1,2})\s*([a-záéíóú]{3,})\s*(\d{4})', s, re.IGNORECASE)
         if not m:
             return None
         day_s, month_s, year_s = m.group(1), m.group(2)[:3].lower(), m.group(3)
@@ -489,6 +502,22 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
     """
     movements: list[dict] = []
 
+    # Internal-transfer keywords for the savings pocket ("Bolsillo").
+    # Any movement whose description contains one of these strings is skipped
+    # because it represents a transfer between the main account balance and the
+    # pocket — not a real income or expense.
+    _BOLSILLO_KEYWORDS = (
+        'bolsillo',
+        'transferencia de dinero a bolsillo',
+        'debito automatico al bolsillo',
+        'abono automatico a bolsillo',
+        'traslado rendimientos a bolsillo',
+        'transferencia desde cuenta a bolsillo',
+        'transferencia de bolsillo a cuenta',
+        'abono de bolsillo a cuenta',
+        'abono rendimientos netos desde cuenta',
+    )
+
     # Extract statement year from header (e.g. 'INFORME DEL MES:FEBRERO /2026')
     year_m = re.search(r'INFORME DEL MES[:\s]+\w+\s*/(\d{4})', full_text, re.IGNORECASE)
     year = year_m.group(1) if year_m else str(datetime.now().year)
@@ -506,7 +535,8 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
                     row_text = ' '.join(cells).upper()
 
                     # Detect section header rows
-                    if 'EXTRACTO' in row_text and 'BOLSILLO' in row_text:
+                    if ('EXTRACTO' in row_text and 'BOLSILLO' in row_text) or \
+                            'H.02' in row_text or 'BOLSILLO AHORRO' in row_text:
                         in_bolsillo = True
                         continue
                     if 'EXTRACTO' in row_text and 'BOLSILLO' not in row_text:
@@ -542,7 +572,7 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
 
                     # Skip bolsillo (pocket) movements – they are internal transfers between
                     # the main account balance and the savings pocket, not real income/expense.
-                    if 'bolsillo' in description.lower():
+                    if any(kw in description.lower() for kw in _BOLSILLO_KEYWORDS):
                         continue
 
                     sign = amount_raw[-1]
