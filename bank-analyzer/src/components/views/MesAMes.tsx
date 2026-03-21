@@ -41,7 +41,6 @@ function statementMeta(type: string) {
   return STATEMENT_TYPE_META[type] ?? { label: type, icon: '📄' }
 }
 
-// Keywords identifying internal bolsillo movements (must match backend list)
 // Keywords identifying internal bolsillo/pocket movements — mirrors backend _INTERNAL_MOVEMENT_KEYWORDS.
 // 'rendimientos financieros' is intentionally NOT listed: those are real income.
 const BOLSILLO_KEYWORDS = [

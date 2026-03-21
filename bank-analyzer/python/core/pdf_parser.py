@@ -507,18 +507,12 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
     # Any movement whose description contains one of these strings is skipped
     # because it represents a transfer between the main account balance and the
     # pocket — not a real income or expense.
+    # 'bolsillo' is generic and catches all variants.
+    # Mirrors _INTERNAL_MOVEMENT_KEYWORDS in summary.py — keep them in sync.
     _BOLSILLO_KEYWORDS = (
-        'bolsillo',
-        'transferencia de dinero a bolsillo',
-        'debito automatico al bolsillo',
-        'débito automático al bolsillo',
-        'abono automatico a bolsillo',
-        'abono automático a bolsillo',
-        'traslado rendimientos a bolsillo',
-        'transferencia desde cuenta a bolsillo',
-        'transferencia de bolsillo a cuenta',
-        'abono de bolsillo a cuenta',
-        'abono rendimientos netos desde cuenta',
+        'bolsillo',               # catches any pocket variant
+        'traslado rendimientos',
+        'abono rendimientos netos',
     )
 
     # Extract statement year from header (e.g. 'INFORME DEL MES:FEBRERO /2026')
@@ -564,6 +558,12 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
     with pdfplumber.open(file_path, **open_kwargs) as pdf:
         in_bolsillo = False
         for page in pdf.pages:
+            # Strategy 1: skip entire pages that belong to the H.02 Bolsillo section.
+            # This is the strongest guard — if the page header identifies it as H.02
+            # or "EXTRACTO BOLSILLO", none of its tables should be processed.
+            page_text = page.extract_text() or ''
+            if 'H.02' in page_text or 'EXTRACTO BOLSILLO' in page_text:
+                continue
             for table in page.extract_tables():
                 for row in table:
                     cells = [str(c).strip() if c is not None else '' for c in row]
