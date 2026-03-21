@@ -248,12 +248,9 @@ def _extract_falabella_metadata(text: str) -> dict:
             # the earlier (wrong) date.
             corte_idx = decoded.find('corte')
             fecha = _parse_es_date(decoded[corte_idx:])
-            print(f"[DEBUG] fecha_corte candidate line: {decoded!r}")
-            print(f"[DEBUG] fecha_corte extracted: {fecha!r}")
             if fecha:
                 metadata['fecha_corte'] = fecha
 
-    print(f"[DEBUG] _extract_falabella_metadata result: {metadata}")
     return metadata
 
 

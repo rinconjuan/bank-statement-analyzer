@@ -206,9 +206,10 @@ def get_monthly_summary(
     # ── Patrimonio (Fix 8) ────────────────────────────────────────────────
     patrimonio_davivienda = 0.0
     if savings_month:
-        nuevo_saldo = savings_month.nuevo_saldo or 0.0
-        saldo_bolsillo_val = savings_month.saldo_bolsillo or 0.0
-        patrimonio_davivienda = nuevo_saldo + saldo_bolsillo_val
+        # saldo_bolsillo is already included within nuevo_saldo — they are the
+        # same money viewed from two angles (total balance vs pocket sub-balance).
+        # Patrimonio Davivienda is simply the total account balance.
+        patrimonio_davivienda = savings_month.nuevo_saldo or 0.0
 
     deuda_falabella = 0.0
     if credit_month:
