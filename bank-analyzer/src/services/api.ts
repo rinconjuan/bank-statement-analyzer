@@ -42,6 +42,7 @@ export interface Movement {
   category_id: number | null
   note: string | null
   applies_this_month: boolean | null
+  statement_type: string
   category: Category | null
 }
 

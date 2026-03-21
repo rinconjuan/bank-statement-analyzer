@@ -77,6 +77,11 @@ class Movement(Base):
     month_rel = relationship('Month', back_populates='movements')
     category = relationship('Category', back_populates='movements')
 
+    @property
+    def statement_type(self) -> str:
+        """Return the statement type of the parent Month (for API serialization)."""
+        return self.month_rel.statement_type if self.month_rel else 'cuenta_ahorro'
+
 
 def get_db():
     db = SessionLocal()

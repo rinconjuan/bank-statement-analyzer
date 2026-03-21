@@ -62,6 +62,7 @@ class Movement(MovementBase):
     category_id: int | None = None
     note: str | None = None
     applies_this_month: bool | None = None
+    statement_type: str = 'cuenta_ahorro'
     category: Category | None = None
     model_config = ConfigDict(from_attributes=True)
 
