@@ -213,3 +213,54 @@ class TrendsReport(BaseModel):
     category_trends: list[CategoryTrend]
     recurring_charges: list[RecurringCharge]
     months_analyzed: int
+
+
+# ── Monthly Unified Summary ─────────────────────────────────────────────────
+
+
+class SalaryInfo(BaseModel):
+    amount: float
+    description: str
+    date: str
+    confirmed: bool = False
+
+
+class CreditCardSummaryInfo(BaseModel):
+    payment_made: float
+    payment_date: str | None = None
+    payment_date_end: str | None = None
+    payment_count: int = 1
+    consumos_periodo: float
+    next_payment_total: float
+    next_payment_min: float
+    next_payment_date: str | None = None
+    payment_confirmed: bool = False
+
+
+class SavingsAccountInfo(BaseModel):
+    opening_balance: float
+    closing_balance: float
+    other_expenses: float
+
+
+class BalanceSummary(BaseModel):
+    income: float
+    card_payment: float
+    other_expenses: float
+    difference: float
+    matches_statement: bool
+    balance_change: float
+
+
+class MonthlySummary(BaseModel):
+    year: int
+    month: int
+    month_label: str
+    salary: SalaryInfo | None = None
+    other_income: float = 0.0
+    total_income: float = 0.0
+    credit_card: CreditCardSummaryInfo | None = None
+    savings_account: SavingsAccountInfo | None = None
+    balance: BalanceSummary | None = None
+    has_savings: bool = False
+    has_credit: bool = False

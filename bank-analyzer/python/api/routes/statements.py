@@ -11,6 +11,7 @@ from models.schemas import (
 )
 from core.pdf_parser import parse_pdf, PDFPasswordRequiredError
 from core.categorizer import auto_categorize_movements
+from core.constants import FIXED_CHARGE_KEYWORDS
 
 router = APIRouter()
 
@@ -173,14 +174,11 @@ def get_months(db: Session = Depends(get_db)):
     return result
 
 
-_FIXED_CHARGE_KEYWORDS = ('COBRO SEGURO VIDA DEUDOR', 'COBRO CUOTA MANEJO')
-
-
 def _is_fixed_charge(description: str) -> bool:
     """Return True for bank-fee lines that always apply to the current statement
     even though they carry cuota_mes == 0 in the table."""
     desc_upper = description.upper()
-    return any(kw in desc_upper for kw in _FIXED_CHARGE_KEYWORDS)
+    return any(kw in desc_upper for kw in FIXED_CHARGE_KEYWORDS)
 
 
 def _date_sort_key(date_str: str) -> tuple:

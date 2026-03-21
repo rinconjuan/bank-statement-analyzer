@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, os.path.dirname(__file__))
 
 from models.database import init_db
-from api.routes import statements, movements, categories, export
+from api.routes import statements, movements, categories, export, summary
 
 # These are set in __main__ before uvicorn starts, and read inside the
 # lifespan handler which runs after the socket is bound and listening.
@@ -53,6 +53,7 @@ app.include_router(statements.router, prefix='/api/v1/statements', tags=['statem
 app.include_router(movements.router, prefix='/api/v1/movements', tags=['movements'])
 app.include_router(categories.router, prefix='/api/v1/categories', tags=['categories'])
 app.include_router(export.router, prefix='/api/v1/export', tags=['export'])
+app.include_router(summary.router, prefix='/api/v1/summary', tags=['summary'])
 
 
 @app.get('/health')

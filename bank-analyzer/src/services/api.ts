@@ -244,3 +244,64 @@ export interface TrendsReport {
 
 export const fetchTrends = () =>
   request<TrendsReport>('/api/v1/movements/trends')
+
+// Monthly unified summary
+export interface SalaryInfo {
+  amount: number
+  description: string
+  date: string
+  confirmed: boolean
+}
+
+export interface CreditCardSummaryInfo {
+  payment_made: number
+  payment_date: string | null
+  payment_date_end: string | null
+  payment_count: number
+  consumos_periodo: number
+  next_payment_total: number
+  next_payment_min: number
+  next_payment_date: string | null
+  payment_confirmed: boolean
+}
+
+export interface SavingsAccountInfo {
+  opening_balance: number
+  closing_balance: number
+  other_expenses: number
+}
+
+export interface BalanceSummary {
+  income: number
+  card_payment: number
+  other_expenses: number
+  difference: number
+  matches_statement: boolean
+  balance_change: number
+}
+
+export interface MonthlySummary {
+  year: number
+  month: number
+  month_label: string
+  salary: SalaryInfo | null
+  other_income: number
+  total_income: number
+  credit_card: CreditCardSummaryInfo | null
+  savings_account: SavingsAccountInfo | null
+  balance: BalanceSummary | null
+  has_savings: boolean
+  has_credit: boolean
+}
+
+export interface AvailableMonth {
+  year: number
+  month: number
+  label: string
+}
+
+export const fetchMonthlySummary = (year: number, month: number) =>
+  request<MonthlySummary>(`/api/v1/summary/monthly?year=${year}&month=${month}`)
+
+export const fetchAvailableMonths = () =>
+  request<AvailableMonth[]>('/api/v1/summary/available-months')

@@ -7,6 +7,7 @@ import { CategoryChart } from './components/dashboard/CategoryChart'
 import { MonthlyChart } from './components/dashboard/MonthlyChart'
 import { CalendarMonthView } from './components/dashboard/CalendarMonthView'
 import { TrendsView } from './components/dashboard/TrendsView'
+import { MonthlySummaryView } from './components/summary/MonthlySummary'
 import { MovementsTable } from './components/movements/MovementsTable'
 import { UploadZone } from './components/upload/UploadZone'
 import { CategoryEditor } from './components/settings/CategoryEditor'
@@ -18,7 +19,7 @@ import { UploadResponse } from './services/api'
 export default function App() {
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null)
   const [showUpload, setShowUpload] = useState(false)
-  const [activeView, setActiveView] = useState<'dashboard' | 'por_mes' | 'tendencias' | 'settings'>('dashboard')
+  const [activeView, setActiveView] = useState<'dashboard' | 'por_mes' | 'tendencias' | 'resumen' | 'settings'>('dashboard')
   const [filters, setFilters] = useState<{ category_id?: number; type?: string; search?: string }>({})
 
   const { months, refresh: refreshMonths, remove: removeMonth } = useMonths()
@@ -73,6 +74,8 @@ export default function App() {
             <CalendarMonthView categories={categories} />
           ) : activeView === 'tendencias' ? (
             <TrendsView />
+          ) : activeView === 'resumen' ? (
+            <MonthlySummaryView />
           ) : activeMonthId === null ? (
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <div className="text-6xl">🏦</div>
