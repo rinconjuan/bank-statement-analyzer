@@ -48,9 +48,14 @@ interface BalanceCardProps {
 }
 
 function BalanceCard({ summary }: BalanceCardProps) {
-  const { salary, other_income, credit_card, savings_account, balance, has_savings, has_credit } = summary
+  const { salary, other_income, credit_card, savings_account, balance, has_savings, has_credit, patrimonio_davivienda, patrimonio_neto } = summary
 
   if (!has_savings && !has_credit) return null
+
+  const hasPatrimonio = savings_account != null && (savings_account.nuevo_saldo > 0 || savings_account.saldo_bolsillo > 0)
+  const deudaFalabella = credit_card
+    ? (patrimonio_davivienda > 0 ? patrimonio_davivienda - patrimonio_neto : 0)
+    : 0
 
   return (
     <div className="rounded-xl p-5 mb-6" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
@@ -163,6 +168,66 @@ function BalanceCard({ summary }: BalanceCardProps) {
             ? 'ℹ️ Sin extracto Davivienda para este mes. Carga el PDF para ver el resumen completo.'
             : 'ℹ️ Sin extracto Falabella para este mes. Carga el PDF para ver el resumen completo.'}
         </div>
+      )}
+
+      {/* Patrimonio section — only shown when saldo data is available */}
+      {hasPatrimonio && savings_account && (
+        <>
+          <div className="mt-4 pt-4" style={{ borderTop: '2px solid var(--border)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-base">🏛️</span>
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Patrimonio</span>
+            </div>
+
+            {/* Davivienda account */}
+            <div className="flex items-center justify-between py-0.5">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Saldo cuenta Davivienda</span>
+              <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
+                {fmt(savings_account.nuevo_saldo)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-0.5">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Saldo bolsillo 💰
+                {savings_account.ahorro_mes > 0 && (
+                  <span className="ml-1" style={{ color: 'var(--accent-green)' }}>
+                    (+{fmt(savings_account.ahorro_mes)} ahorrado este mes)
+                  </span>
+                )}
+              </span>
+              <span className="text-xs font-mono" style={{ color: 'var(--accent-green)' }}>
+                {fmt(savings_account.saldo_bolsillo)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Total Davivienda</span>
+              <span className="text-xs font-mono font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                {fmt(patrimonio_davivienda)}
+              </span>
+            </div>
+
+            {/* Falabella debt */}
+            {deudaFalabella > 0 && (
+              <div className="flex items-center justify-between py-0.5">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>💳 Deuda Falabella</span>
+                <span className="text-xs font-mono" style={{ color: 'var(--accent-red)' }}>
+                  -{fmt(deudaFalabella)}
+                </span>
+              </div>
+            )}
+
+            {/* Patrimonio neto */}
+            <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Patrimonio neto</span>
+              <span
+                className="text-sm font-mono font-bold"
+                style={{ color: patrimonio_neto >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}
+              >
+                {(patrimonio_neto >= 0 ? '+' : '') + fmt(patrimonio_neto)}
+              </span>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

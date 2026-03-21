@@ -120,6 +120,9 @@ async def upload_statement(
         cupo_total=pdf_meta.get('cupo_total') or 0.0,
         cupo_disponible=pdf_meta.get('cupo_disponible') or 0.0,
         consumos_periodo=consumos_periodo,
+        saldo_anterior=pdf_meta.get('saldo_anterior'),
+        nuevo_saldo=pdf_meta.get('nuevo_saldo'),
+        saldo_bolsillo=pdf_meta.get('saldo_bolsillo'),
     )
     db.add(db_month)
     db.flush()
@@ -183,6 +186,9 @@ def get_months(db: Session = Depends(get_db)):
             cupo_total=m.cupo_total or 0.0,
             cupo_disponible=m.cupo_disponible or 0.0,
             consumos_periodo=m.consumos_periodo or 0.0,
+            saldo_anterior=m.saldo_anterior,
+            nuevo_saldo=m.nuevo_saldo,
+            saldo_bolsillo=m.saldo_bolsillo,
         ))
     return result
 

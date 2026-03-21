@@ -269,6 +269,10 @@ export interface SavingsAccountInfo {
   opening_balance: number
   closing_balance: number
   other_expenses: number
+  saldo_anterior: number
+  nuevo_saldo: number
+  saldo_bolsillo: number
+  ahorro_mes: number
 }
 
 export interface BalanceSummary {
@@ -292,6 +296,8 @@ export interface MonthlySummary {
   balance: BalanceSummary | null
   has_savings: boolean
   has_credit: boolean
+  patrimonio_davivienda: number
+  patrimonio_neto: number
 }
 
 export interface AvailableMonth {

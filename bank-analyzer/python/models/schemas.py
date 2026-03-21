@@ -104,6 +104,10 @@ class MonthWithStats(Month):
     cupo_total: float = 0.0
     cupo_disponible: float = 0.0
     consumos_periodo: float = 0.0
+    # Davivienda balance fields
+    saldo_anterior: float | None = None
+    nuevo_saldo: float | None = None
+    saldo_bolsillo: float | None = None
 
 
 class UploadResponse(BaseModel):
@@ -241,6 +245,11 @@ class SavingsAccountInfo(BaseModel):
     opening_balance: float
     closing_balance: float
     other_expenses: float
+    # Davivienda balance fields (from PDF metadata)
+    saldo_anterior: float = 0.0
+    nuevo_saldo: float = 0.0
+    saldo_bolsillo: float = 0.0
+    ahorro_mes: float = 0.0  # amount moved to the bolsillo pocket this month
 
 
 class BalanceSummary(BaseModel):
@@ -264,3 +273,5 @@ class MonthlySummary(BaseModel):
     balance: BalanceSummary | None = None
     has_savings: bool = False
     has_credit: bool = False
+    patrimonio_davivienda: float = 0.0
+    patrimonio_neto: float = 0.0

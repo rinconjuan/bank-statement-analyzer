@@ -82,8 +82,11 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
     """Parse PDF and return (movements, bank_name, metadata).
 
     metadata keys:
-      - min_payment:   float | None  (credit card minimum payment due)
-      - total_payment: float | None  (credit card total balance due)
+      - min_payment:    float | None  (credit card minimum payment due)
+      - total_payment:  float | None  (credit card total balance due)
+      - saldo_anterior: float | None  (Davivienda previous balance)
+      - nuevo_saldo:    float | None  (Davivienda new/closing balance)
+      - saldo_bolsillo: float | None  (Davivienda pocket/savings balance)
 
     Raises PDFPasswordRequiredError if the file is encrypted and no password
     (or a wrong password) is supplied.
@@ -126,7 +129,8 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
             movements = _parse_falabella(file_path, full_text, password=password)
             metadata = _extract_falabella_metadata(full_text)
         elif bank_name == 'davivienda':
-            movements = _parse_davivienda(file_path, full_text, password=password)
+            movements, davivienda_meta = _parse_davivienda(file_path, full_text, password=password)
+            metadata.update(davivienda_meta)
         else:
             # Generic path: try table extraction first, fall back to regex
             for page in pdf.pages:
@@ -510,7 +514,9 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
         'bolsillo',
         'transferencia de dinero a bolsillo',
         'debito automatico al bolsillo',
+        'débito automático al bolsillo',
         'abono automatico a bolsillo',
+        'abono automático a bolsillo',
         'traslado rendimientos a bolsillo',
         'transferencia desde cuenta a bolsillo',
         'transferencia de bolsillo a cuenta',
@@ -521,6 +527,38 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
     # Extract statement year from header (e.g. 'INFORME DEL MES:FEBRERO /2026')
     year_m = re.search(r'INFORME DEL MES[:\s]+\w+\s*/(\d{4})', full_text, re.IGNORECASE)
     year = year_m.group(1) if year_m else str(datetime.now().year)
+
+    # ── Extract balance metadata from free text ────────────────────────────
+    # Lines in the PDF look like: "Saldo Anterior $2,805,400.83"
+    davivienda_meta: dict = {
+        'saldo_anterior': None,
+        'nuevo_saldo': None,
+        'saldo_bolsillo': None,
+    }
+    for line in full_text.split('\n'):
+        line_s = line.strip()
+        line_lower = line_s.lower()
+        if davivienda_meta['saldo_anterior'] is None and 'saldo anterior' in line_lower:
+            m_amt = re.search(r'\$\s*([\d.,]+)', line_s)
+            if m_amt:
+                try:
+                    davivienda_meta['saldo_anterior'] = parse_amount(m_amt.group(1))
+                except Exception:
+                    pass
+        if davivienda_meta['nuevo_saldo'] is None and 'nuevo saldo' in line_lower:
+            m_amt = re.search(r'\$\s*([\d.,]+)', line_s)
+            if m_amt:
+                try:
+                    davivienda_meta['nuevo_saldo'] = parse_amount(m_amt.group(1))
+                except Exception:
+                    pass
+        if davivienda_meta['saldo_bolsillo'] is None and 'saldo total bolsillo' in line_lower:
+            m_amt = re.search(r'\$\s*([\d.,]+)', line_s)
+            if m_amt:
+                try:
+                    davivienda_meta['saldo_bolsillo'] = parse_amount(m_amt.group(1))
+                except Exception:
+                    pass
 
     open_kwargs: dict = {}
     if password:
@@ -594,7 +632,7 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
                         'type': mov_type,
                     })
 
-    return movements
+    return movements, davivienda_meta
 
 
 # ---------------------------------------------------------------------------

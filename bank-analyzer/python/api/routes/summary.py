@@ -23,6 +23,31 @@ _MONTH_NAMES_ES = [
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
+# Keywords identifying internal bolsillo/pocket movements that should NOT count
+# as real expenses or income in the monthly balance.
+_INTERNAL_MOVEMENT_KEYWORDS = (
+    'bolsillo',
+    'transferencia de dinero a bolsillo',
+    'debito automatico al bolsillo',
+    'débito automático al bolsillo',
+    'abono automatico a bolsillo',
+    'abono automático a bolsillo',
+    'traslado rendimientos a bolsillo',
+    'traslado rendimientos',
+    'transferencia desde cuenta a bolsillo',
+    'transferencia de bolsillo a cuenta',
+    'abono de bolsillo a cuenta',
+    'abono rendimientos netos desde cuenta',
+    'rendimientos financieros',
+)
+
+
+def _is_internal_movement(description: str) -> bool:
+    """Return True if this movement is an internal bolsillo/pocket transfer."""
+    desc_lower = description.lower()
+    return any(kw in desc_lower for kw in _INTERNAL_MOVEMENT_KEYWORDS)
+
+
 def _is_fixed_charge(description: str) -> bool:
     desc_upper = description.upper()
     return any(kw in desc_upper for kw in FIXED_CHARGE_KEYWORDS)
@@ -102,25 +127,35 @@ def get_monthly_summary(
         ]
         falabella_payment_amount = sum(mv.amount for mv in falabella_payments)
 
-        # Other expenses = all debits except Falabella payments
+        # Amount moved to bolsillo pocket this month (from egreso movements that are internal)
+        ahorro_mes = sum(
+            mv.amount for mv in mv_savings_sorted
+            if mv.type == 'Egreso'
+            and _is_internal_movement(mv.description)
+            and mv not in falabella_payments
+            and 'rendimientos' not in mv.description.lower()
+        )
+
+        # Other real expenses = all debits except Falabella payments and internal transfers
         other_expenses_savings = sum(
             mv.amount for mv in mv_savings_sorted
-            if mv.type == 'Egreso' and mv not in falabella_payments
+            if mv.type == 'Egreso'
+            and mv not in falabella_payments
+            and not _is_internal_movement(mv.description)
         )
 
         # Opening / closing balance approximation from cumulative amounts
         opening_balance = 0.0
         closing_balance = 0.0
-        if mv_savings_sorted:
-            # Some parsers embed balance snapshots; we don't have them so derive from
-            # the net flow. Use 0 as a sentinel meaning "not available from PDF".
-            opening_balance = 0.0
-            closing_balance = 0.0
 
         savings_info = SavingsAccountInfo(
             opening_balance=opening_balance,
             closing_balance=closing_balance,
             other_expenses=other_expenses_savings,
+            saldo_anterior=savings_month.saldo_anterior or 0.0,
+            nuevo_saldo=savings_month.nuevo_saldo or 0.0,
+            saldo_bolsillo=savings_month.saldo_bolsillo or 0.0,
+            ahorro_mes=ahorro_mes,
         )
 
     # ── Credit card analysis ─────────────────────────────────────────────
@@ -168,13 +203,25 @@ def get_monthly_summary(
             payment_confirmed=payment_confirmed,
         )
 
+    # ── Patrimonio (Fix 8) ────────────────────────────────────────────────
+    patrimonio_davivienda = 0.0
+    if savings_month:
+        nuevo_saldo = savings_month.nuevo_saldo or 0.0
+        saldo_bolsillo_val = savings_month.saldo_bolsillo or 0.0
+        patrimonio_davivienda = nuevo_saldo + saldo_bolsillo_val
+
+    deuda_falabella = 0.0
+    if credit_month:
+        deuda_falabella = (credit_month.cupo_total or 0.0) - (credit_month.cupo_disponible or 0.0)
+
+    patrimonio_neto = patrimonio_davivienda - deuda_falabella
+
     # ── Balance ───────────────────────────────────────────────────────────
     balance_info: BalanceSummary | None = None
     if savings_info or credit_info:
         card_payment = credit_info.payment_made if credit_info else falabella_payment_amount
         other_exp = savings_info.other_expenses if savings_info else 0.0
         diff = total_income - card_payment - other_exp
-        # If we have opening/closing balance from Davivienda, check if it matches
         bal_change = savings_info.closing_balance - savings_info.opening_balance if savings_info else 0.0
         matches = savings_info is not None and abs(diff - bal_change) < 100.0
 
@@ -199,6 +246,8 @@ def get_monthly_summary(
         balance=balance_info,
         has_savings=savings_month is not None,
         has_credit=credit_month is not None,
+        patrimonio_davivienda=patrimonio_davivienda,
+        patrimonio_neto=patrimonio_neto,
     )
 
 
