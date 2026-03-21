@@ -1,0 +1,17 @@
+appId: com.bankanalyzer.app
+productName: Bank Analyzer
+directories:
+  output: dist-electron
+mac:
+  category: public.app-category.finance
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+win:
+  target:
+    - target: nsis
+    - target: portable
+extraResources:
+  - from: python-dist/
+    to: python/
+    filter: ["**/*"]

@@ -1,3 +1,16 @@
+# Node.js dependencies
+node_modules/
+bank-analyzer/node_modules/
+
+# Build outputs
+bank-analyzer/dist/
+bank-analyzer/dist-electron/
+bank-analyzer/electron-dist/
+
+# SQLite database files
+*.db
+*.db-journal
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
