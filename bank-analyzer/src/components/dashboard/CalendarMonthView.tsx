@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchCalendarMonths, fetchMovements, Movement, Category } from '../../services/api'
+import { fetchCalendarMonths, fetchMovements, fetchMonths, Movement, Category, MonthWithStats } from '../../services/api'
 import { MovementRow } from '../movements/MovementRow'
 
 const MONTH_NAMES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -25,12 +25,13 @@ function statementMeta(type: string) {
 
 interface StatementSectionProps {
   statementType: string
+  bankName?: string | null
   movements: Movement[]
   categories: Category[]
   onRefresh: () => void
 }
 
-function StatementSection({ statementType, movements, categories, onRefresh }: StatementSectionProps) {
+function StatementSection({ statementType, bankName, movements, categories, onRefresh }: StatementSectionProps) {
   const meta = statementMeta(statementType)
   const income = movements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0)
   const expense = movements.filter(m => m.type === 'Egreso').reduce((s, m) => s + m.amount, 0)
@@ -45,6 +46,11 @@ function StatementSection({ statementType, movements, categories, onRefresh }: S
         <div className="flex items-center gap-2">
           <span className="text-base">{meta.icon}</span>
           <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{meta.label}</span>
+          {bankName && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium capitalize" style={{ background: 'var(--bg-primary)', color: 'var(--accent-primary)' }}>
+              {bankName}
+            </span>
+          )}
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>
             {movements.length} mov.
           </span>
@@ -98,14 +104,16 @@ export function CalendarMonthView({ categories }: CalendarMonthViewProps) {
   const [calMonths, setCalMonths] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [movements, setMovements] = useState<Movement[]>([])
+  const [allMonths, setAllMonths] = useState<MonthWithStats[]>([])
   const [loading, setLoading] = useState(false)
 
-  // Load available calendar months
+  // Load available calendar months and all statement months (for bank name lookup)
   useEffect(() => {
     fetchCalendarMonths().then((months) => {
       setCalMonths(months)
       if (months.length > 0) setSelected(months[0])
     }).catch(() => {})
+    fetchMonths().then(setAllMonths).catch(() => {})
   }, [])
 
   const loadMovements = useCallback(async (ym: string) => {
@@ -124,15 +132,19 @@ export function CalendarMonthView({ categories }: CalendarMonthViewProps) {
     if (selected) loadMovements(selected)
   }, [selected, loadMovements])
 
-  // Group movements by statement type, preserving a consistent order
-  const TYPE_ORDER = ['tarjeta_credito', 'cuenta_ahorro']
-  const groupedTypes = TYPE_ORDER.filter(t => movements.some(m => m.statement_type === t))
-  // Include any other types not in the static order list
-  const otherTypes = [...new Set(movements.map(m => m.statement_type))].filter(t => !TYPE_ORDER.includes(t))
-  const orderedTypes = [...groupedTypes, ...otherTypes]
+  // Build a lookup map from month_id to MonthWithStats (for bank name + statement type)
+  const monthIdToStats = new Map(allMonths.map(m => [m.id, m]))
 
-  const totalIncome = movements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0)
-  const totalExpense = movements.filter(m => m.type === 'Egreso').reduce((s, m) => s + m.amount, 0)
+  // Group movements by month_id — each represents a distinct statement (bank account)
+  const TYPE_ORDER = ['tarjeta_credito', 'cuenta_ahorro']
+  const uniqueMonthIds = [...new Set(movements.map(m => m.month_id))]
+  const orderedMonthIds = [...uniqueMonthIds].sort((a, b) => {
+    const typeA = monthIdToStats.get(a)?.statement_type ?? movements.find(m => m.month_id === a)?.statement_type ?? ''
+    const typeB = monthIdToStats.get(b)?.statement_type ?? movements.find(m => m.month_id === b)?.statement_type ?? ''
+    const ia = TYPE_ORDER.includes(typeA) ? TYPE_ORDER.indexOf(typeA) : 99
+    const ib = TYPE_ORDER.includes(typeB) ? TYPE_ORDER.indexOf(typeB) : 99
+    return ia - ib
+  })
 
   if (calMonths.length === 0) {
     return (
@@ -176,23 +188,14 @@ export function CalendarMonthView({ categories }: CalendarMonthViewProps) {
       <div className="flex-1 min-w-0">
         {selected && (
           <>
-            {/* Overall month header */}
+            {/* Month header — shows month name only; per-table totals are in each section */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {calendarMonthLabel(selected)}
               </h2>
-              <div className="flex items-center gap-4 text-sm">
-                {totalIncome > 0 && (
-                  <span style={{ color: 'var(--accent-green)' }}>↑ {formatAmount(totalIncome)}</span>
-                )}
-                {totalExpense > 0 && (
-                  <span style={{ color: 'var(--accent-red)' }}>↓ {formatAmount(totalExpense)}</span>
-                )}
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {movements.length} movimientos
-                  {orderedTypes.length > 1 && ` · ${orderedTypes.length} tipos de extracto`}
-                </span>
-              </div>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {movements.length} movimientos
+              </span>
             </div>
 
             {loading ? (
@@ -209,45 +212,23 @@ export function CalendarMonthView({ categories }: CalendarMonthViewProps) {
               >
                 Sin movimientos para {calendarMonthLabel(selected)}
               </div>
-            ) : orderedTypes.length === 1 ? (
-              // Single statement type: render table directly without section header
-              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                <div className="overflow-auto max-h-[600px]">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}>
-                        <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Fecha</th>
-                        <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Descripción</th>
-                        <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Monto</th>
-                        <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Tipo</th>
-                        <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Categoría</th>
-                        <th className="px-4 py-2.5 text-xs font-medium text-center" style={{ color: 'var(--text-muted)' }}>Aplica</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {movements.map((m) => (
-                        <MovementRow
-                          key={m.id}
-                          movement={m}
-                          categories={categories}
-                          onUpdated={() => loadMovements(selected)}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             ) : (
-              // Multiple statement types: render a separate section per type
-              orderedTypes.map((type) => (
-                <StatementSection
-                  key={type}
-                  statementType={type}
-                  movements={movements.filter(m => m.statement_type === type)}
-                  categories={categories}
-                  onRefresh={() => loadMovements(selected)}
-                />
-              ))
+              // Render a separate section per statement (month_id = one bank account/card)
+              orderedMonthIds.map((monthId) => {
+                const stats = monthIdToStats.get(monthId)
+                const movsForMonth = movements.filter(m => m.month_id === monthId)
+                const statementType = stats?.statement_type ?? movsForMonth[0]?.statement_type ?? ''
+                return (
+                  <StatementSection
+                    key={monthId}
+                    statementType={statementType}
+                    bankName={stats?.bank_name}
+                    movements={movsForMonth}
+                    categories={categories}
+                    onRefresh={() => loadMovements(selected)}
+                  />
+                )
+              })
             )}
           </>
         )}
