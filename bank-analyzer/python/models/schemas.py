@@ -157,3 +157,55 @@ class CreditSummary(BaseModel):
     consumos_por_mes: list[CreditSummaryMonth] = []
     total_consumos_nuevos: float = 0.0
     total_diferidos: float = 0.0
+
+
+# ── Trends ─────────────────────────────────────────────────────────────────
+
+
+class MonthlyTotal(BaseModel):
+    month: str           # 'YYYY-MM'
+    label: str           # 'Enero 2026'
+    total_expenses: float
+    total_income: float
+    statement_type: str = 'cuenta_ahorro'
+
+
+class CategoryTrendPoint(BaseModel):
+    month: str           # 'YYYY-MM'
+    label: str
+    total: float
+
+
+class CategoryTrend(BaseModel):
+    category_id: int | None
+    category_name: str
+    category_color: str
+    category_icon: str
+    points: list[CategoryTrendPoint]
+    trend: str           # 'up' | 'down' | 'stable' | 'new'
+    change_pct: float    # percentage change last vs first period
+    avg_monthly: float
+
+
+class RecurringOccurrence(BaseModel):
+    month: str           # 'YYYY-MM'
+    label: str
+    date: str
+    amount: float
+
+
+class RecurringCharge(BaseModel):
+    description: str
+    occurrences: list[RecurringOccurrence]
+    avg_amount: float
+    min_amount: float
+    max_amount: float
+    trend: str           # 'stable' | 'up' | 'down'
+    months_seen: int
+
+
+class TrendsReport(BaseModel):
+    monthly_totals: list[MonthlyTotal]
+    category_trends: list[CategoryTrend]
+    recurring_charges: list[RecurringCharge]
+    months_analyzed: int

@@ -188,3 +188,56 @@ export interface CreditSummary {
 
 export const fetchCreditSummary = (month_id: number) =>
   request<CreditSummary>(`/api/v1/statements/months/${month_id}/credit-summary`)
+
+// Trends
+export interface MonthlyTotal {
+  month: string     // 'YYYY-MM'
+  label: string     // 'Enero 2026'
+  total_expenses: number
+  total_income: number
+  statement_type: string
+}
+
+export interface CategoryTrendPoint {
+  month: string
+  label: string
+  total: number
+}
+
+export interface CategoryTrend {
+  category_id: number | null
+  category_name: string
+  category_color: string
+  category_icon: string
+  points: CategoryTrendPoint[]
+  trend: 'up' | 'down' | 'stable' | 'new'
+  change_pct: number
+  avg_monthly: number
+}
+
+export interface RecurringOccurrence {
+  month: string
+  label: string
+  date: string
+  amount: number
+}
+
+export interface RecurringCharge {
+  description: string
+  occurrences: RecurringOccurrence[]
+  avg_amount: number
+  min_amount: number
+  max_amount: number
+  trend: 'up' | 'down' | 'stable'
+  months_seen: number
+}
+
+export interface TrendsReport {
+  monthly_totals: MonthlyTotal[]
+  category_trends: CategoryTrend[]
+  recurring_charges: RecurringCharge[]
+  months_analyzed: number
+}
+
+export const fetchTrends = () =>
+  request<TrendsReport>('/api/v1/movements/trends')

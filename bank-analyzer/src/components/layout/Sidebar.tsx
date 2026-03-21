@@ -13,8 +13,8 @@ interface SidebarProps {
   onSelectMonth: (id: number) => void
   onUploadClick: () => void
   onDeleteMonth: (id: number) => void
-  activeView: 'dashboard' | 'por_mes' | 'settings'
-  onViewChange: (v: 'dashboard' | 'por_mes' | 'settings') => void
+  activeView: 'dashboard' | 'por_mes' | 'tendencias' | 'settings'
+  onViewChange: (v: 'dashboard' | 'por_mes' | 'tendencias' | 'settings') => void
 }
 
 export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, onDeleteMonth, activeView, onViewChange }: SidebarProps) {
@@ -55,6 +55,16 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
           }}
         >
           <span>📅</span> Por Mes
+        </button>
+        <button
+          onClick={() => onViewChange('tendencias')}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all mb-1"
+          style={{
+            background: activeView === 'tendencias' ? 'var(--accent-primary)' : 'transparent',
+            color: activeView === 'tendencias' ? '#fff' : 'var(--text-secondary)',
+          }}
+        >
+          <span>📈</span> Tendencias
         </button>
         <button
           onClick={() => onViewChange('settings')}

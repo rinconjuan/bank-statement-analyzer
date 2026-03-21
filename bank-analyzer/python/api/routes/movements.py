@@ -4,10 +4,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from models.database import get_db, Movement
+from models.database import get_db, Movement, Month
 from models.schemas import (
     Movement as MovementSchema, MovementUpdate,
     MovementsSummary, CategorySummary, MonthlyExpenseBreakdown,
+    TrendsReport, MonthlyTotal, CategoryTrend, CategoryTrendPoint,
+    RecurringCharge, RecurringOccurrence,
 )
 from core.categorizer import save_user_rule
 
@@ -150,3 +152,170 @@ def get_calendar_months(db: Session = Depends(get_db)):
             if len(parts) == 3:
                 months.add(f'{parts[2]}-{parts[1]}')
     return sorted(months, reverse=True)
+
+
+@router.get('/trends', response_model=TrendsReport)
+def get_trends(db: Session = Depends(get_db)):
+    """Compute spending trends across all uploaded statement months.
+
+    Returns:
+    - monthly_totals: total income/expenses per statement month.
+    - category_trends: per-category evolution across months (top 10 by total spend).
+    - recurring_charges: suspected subscriptions/recurring expenses detected in
+      2+ statement months with a similar description.
+    """
+    # Load all statement months ordered chronologically
+    all_months = db.query(Month).order_by(Month.year, Month.month).all()
+    if not all_months:
+        return TrendsReport(monthly_totals=[], category_trends=[], recurring_charges=[], months_analyzed=0)
+
+    # Build a key for each month record (year-month string) from its year/month fields
+    def _month_key(m: Month) -> str:
+        return f'{m.year}-{m.month:02d}'
+
+    # ── 1. Monthly totals ──────────────────────────────────────────────────
+    monthly_totals_map: dict[str, MonthlyTotal] = {}
+    for m in all_months:
+        key = _month_key(m)
+        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        expenses = sum(mv.amount for mv in movs if mv.type == 'Egreso')
+        income = sum(mv.amount for mv in movs if mv.type == 'Ingreso')
+        monthly_totals_map[key] = MonthlyTotal(
+            month=key,
+            label=_ym_to_label(key),
+            total_expenses=expenses,
+            total_income=income,
+            statement_type=m.statement_type or 'cuenta_ahorro',
+        )
+    monthly_totals = list(monthly_totals_map.values())
+
+    # ── 2. Category trends ─────────────────────────────────────────────────
+    # For each (month, category) pair, accumulate expenses
+    cat_month_totals: dict = defaultdict(lambda: defaultdict(float))
+    cat_meta: dict = {}
+
+    for m in all_months:
+        key = _month_key(m)
+        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        for mv in movs:
+            if mv.type != 'Egreso':
+                continue
+            cat_id = mv.category_id
+            cat_month_totals[cat_id][key] += mv.amount
+            if cat_id not in cat_meta and mv.category:
+                cat_meta[cat_id] = mv.category
+
+    # Build sorted list of all month keys present in data
+    all_month_keys = sorted({k for cat_data in cat_month_totals.values() for k in cat_data.keys()})
+
+    category_trends: list[CategoryTrend] = []
+    for cat_id, month_data in cat_month_totals.items():
+        points = [
+            CategoryTrendPoint(month=k, label=_ym_to_label(k), total=month_data.get(k, 0.0))
+            for k in all_month_keys
+        ]
+        totals = [p.total for p in points if p.total > 0]
+        avg_monthly = sum(totals) / len(totals) if totals else 0.0
+
+        # Trend: compare last period vs first period
+        first = next((p.total for p in points if p.total > 0), 0.0)
+        last = next((p.total for p in reversed(points) if p.total > 0), 0.0)
+        if first == 0:
+            trend = 'new'
+            change_pct = 0.0
+        else:
+            change_pct = round((last - first) / first * 100, 1)
+            if change_pct > 10:
+                trend = 'up'
+            elif change_pct < -10:
+                trend = 'down'
+            else:
+                trend = 'stable'
+
+        cat = cat_meta.get(cat_id)
+        category_trends.append(CategoryTrend(
+            category_id=cat_id,
+            category_name=cat.name if cat else 'Sin categoría',
+            category_color=cat.color if cat else '#94a3b8',
+            category_icon=cat.icon if cat else '📦',
+            points=points,
+            trend=trend,
+            change_pct=change_pct,
+            avg_monthly=avg_monthly,
+        ))
+
+    # Sort by total spend descending, take top 10
+    category_trends.sort(key=lambda c: c.avg_monthly, reverse=True)
+    category_trends = category_trends[:10]
+
+    # ── 3. Recurring charges ───────────────────────────────────────────────
+    # Group expenses by a normalised description key across different statement months
+    desc_occurrences: dict[str, list] = defaultdict(list)
+
+    for m in all_months:
+        month_key = _month_key(m)
+        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        for mv in movs:
+            if mv.type != 'Egreso':
+                continue
+            # Normalise: first 30 chars, uppercase, strip numbers
+            import re
+            normalised = re.sub(r'\d', '', mv.description[:30].upper()).strip()
+            if len(normalised) < 4:
+                continue
+            desc_occurrences[normalised].append({
+                'raw_desc': mv.description,
+                'month': month_key,
+                'date': mv.date,
+                'amount': mv.amount,
+            })
+
+    recurring_charges: list[RecurringCharge] = []
+    for norm_desc, occ_list in desc_occurrences.items():
+        # Only flag if seen in 2+ different statement months
+        distinct_months = {o['month'] for o in occ_list}
+        if len(distinct_months) < 2:
+            continue
+
+        # Use raw description from most recent occurrence
+        occ_list_sorted = sorted(occ_list, key=lambda o: o['month'])
+        raw_desc = occ_list_sorted[-1]['raw_desc']
+        amounts = [o['amount'] for o in occ_list_sorted]
+        avg_amt = sum(amounts) / len(amounts)
+        first_amt = amounts[0]
+        last_amt = amounts[-1]
+        if first_amt == 0:
+            rec_trend = 'stable'
+        else:
+            pct = (last_amt - first_amt) / first_amt * 100
+            rec_trend = 'up' if pct > 10 else ('down' if pct < -10 else 'stable')
+
+        occurrences = [
+            RecurringOccurrence(
+                month=o['month'],
+                label=_ym_to_label(o['month']),
+                date=o['date'],
+                amount=o['amount'],
+            )
+            for o in occ_list_sorted
+        ]
+        recurring_charges.append(RecurringCharge(
+            description=raw_desc,
+            occurrences=occurrences,
+            avg_amount=round(avg_amt, 2),
+            min_amount=min(amounts),
+            max_amount=max(amounts),
+            trend=rec_trend,
+            months_seen=len(distinct_months),
+        ))
+
+    # Sort by months_seen desc, then avg amount desc
+    recurring_charges.sort(key=lambda r: (r.months_seen, r.avg_amount), reverse=True)
+    recurring_charges = recurring_charges[:20]
+
+    return TrendsReport(
+        monthly_totals=monthly_totals,
+        category_trends=category_trends,
+        recurring_charges=recurring_charges,
+        months_analyzed=len(all_months),
+    )
