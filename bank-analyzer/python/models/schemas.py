@@ -261,10 +261,21 @@ class BalanceSummary(BaseModel):
     balance_change: float
 
 
+class ExpenseBreakdownItem(BaseModel):
+    """A single line in the QUÉ SALIÓ section of the monthly balance."""
+    label: str
+    icon: str
+    amount: float
+    tooltip: str | None = None
+    count: int = 1
+
+
 class MonthlySummary(BaseModel):
     year: int
     month: int
     month_label: str
+    # PARCIAL | ACTIVO | CERRADO
+    month_status: str = 'PARCIAL'
     salary: SalaryInfo | None = None
     other_income: float = 0.0
     total_income: float = 0.0
@@ -275,3 +286,11 @@ class MonthlySummary(BaseModel):
     has_credit: bool = False
     patrimonio_davivienda: float = 0.0
     patrimonio_neto: float = 0.0
+    # Detailed expense breakdown for QUÉ SALIÓ section
+    expense_breakdown: list[ExpenseBreakdownItem] = []
+    # Confirmation of next Falabella payment (for CERRADO months)
+    next_payment_confirmed: bool = False
+    next_payment_confirmation_date: str | None = None
+    next_payment_confirmation_amount: float = 0.0
+    # Ahorro real = diferencia - confirmed next Falabella payment (only for CERRADO)
+    ahorro_real: float | None = None

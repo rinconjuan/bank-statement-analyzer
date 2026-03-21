@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from models.database import get_db, Month, Movement
 from models.schemas import (
     MonthlySummary, SalaryInfo, CreditCardSummaryInfo,
-    SavingsAccountInfo, BalanceSummary,
+    SavingsAccountInfo, BalanceSummary, ExpenseBreakdownItem,
 )
 from core.constants import (
     FIXED_CHARGE_KEYWORDS, FALABELLA_PAYMENT_KEYWORDS,
@@ -40,6 +40,41 @@ _INTERNAL_MOVEMENT_KEYWORDS = (
     'abono rendimientos netos desde cuenta',
     'rendimientos financieros',
 )
+
+# Expense classification groups for the QUÉ SALIÓ breakdown.
+# Order matters: first match wins. 'otras_compras' is the fallback.
+_EXPENSE_GROUPS: list[dict] = [
+    {
+        'key': 'falabella',
+        'label': 'Pago Falabella',
+        'icon': '💳',
+        'keywords': ('FALABELLA', 'CMR', 'BANCO FALABELLA'),
+    },
+    {
+        'key': 'impuestos',
+        'label': 'Impuestos / PSE',
+        'icon': '🏛️',
+        'keywords': ('SECRETARIA', 'HACIENDA', 'PSE', 'DIAN'),
+    },
+    {
+        'key': 'transferencias',
+        'label': 'Transferencias',
+        'icon': '🔀',
+        'keywords': ('TRANSFERENCIA A LLAVE', 'LLAVE OTRA ENTIDAD', 'DAVIPLATA', 'TRANSFERENCIA ENVIADA'),
+    },
+    {
+        'key': 'bancarios',
+        'label': 'Gastos bancarios',
+        'icon': '🏦',
+        'keywords': ('COBRO', 'IVA POR', 'COMISION', 'OPCION CUENTA DIGITAL', 'CUOTA DIGITAL'),
+    },
+    {
+        'key': 'retiros',
+        'label': 'Retiros cajero',
+        'icon': '🏧',
+        'keywords': ('RETIRO', 'CAJERO'),
+    },
+]
 
 
 def _is_internal_movement(description: str) -> bool:
@@ -77,6 +112,87 @@ def _detect_salary(movements: list) -> tuple[float, str, str] | None:
     return best
 
 
+def _classify_expense(description: str) -> str:
+    """Return the expense group key for a given movement description."""
+    desc_upper = description.upper()
+    for group in _EXPENSE_GROUPS:
+        if any(kw in desc_upper for kw in group['keywords']):
+            return group['key']
+    return 'otras_compras'
+
+
+def _next_month(year: int, month: int) -> tuple[int, int]:
+    """Return (year, month) for the month following the given one."""
+    if month == 12:
+        return year + 1, 1
+    return year, month + 1
+
+
+def _prev_month(year: int, month: int) -> tuple[int, int]:
+    """Return (year, month) for the month preceding the given one."""
+    if month == 1:
+        return year - 1, 12
+    return year, month - 1
+
+
+def _find_confirmed_falabella_payment(
+    year: int, month: int, expected_amount: float, db: Session,
+) -> tuple[float, str | None]:
+    """
+    Look in next month's Davivienda for a Falabella payment that confirms the
+    current month's credit card balance was paid.
+
+    Returns (amount, date) or (0.0, None) if not found.
+    """
+    next_year, next_month_num = _next_month(year, month)
+    next_savings = db.query(Month).filter(
+        Month.year == next_year,
+        Month.month == next_month_num,
+        Month.statement_type == 'cuenta_ahorro',
+    ).first()
+    if not next_savings:
+        return 0.0, None
+
+    mv_next = db.query(Movement).filter(Movement.month_id == next_savings.id).all()
+    candidates = [
+        mv for mv in mv_next
+        if mv.type == 'Egreso'
+        and any(kw in mv.description.upper() for kw in FALABELLA_PAYMENT_KEYWORDS)
+    ]
+    if not candidates:
+        return 0.0, None
+
+    # Accept any candidate if expected_amount is unknown, otherwise match within $10k
+    for mv in sorted(candidates, key=lambda m: _date_sort_key(m.date)):
+        if expected_amount <= 0 or abs(mv.amount - expected_amount) < 10_000:
+            return mv.amount, mv.date
+
+    # No close match – still return the largest candidate as a best effort
+    best = max(candidates, key=lambda m: m.amount)
+    return best.amount, best.date
+
+
+def _determine_month_status(
+    year: int, month: int,
+    has_savings: bool, has_credit: bool,
+    db: Session,
+) -> str:
+    """Return PARCIAL, ACTIVO, or CERRADO for the given month."""
+    if not has_savings or not has_credit:
+        return 'PARCIAL'
+
+    # CERRADO if next month's Davivienda extracto is already available
+    next_year, next_month_num = _next_month(year, month)
+    next_savings = db.query(Month).filter(
+        Month.year == next_year,
+        Month.month == next_month_num,
+        Month.statement_type == 'cuenta_ahorro',
+    ).first()
+    if next_savings:
+        return 'CERRADO'
+    return 'ACTIVO'
+
+
 @router.get('/monthly', response_model=MonthlySummary)
 def get_monthly_summary(
     year: int = Query(..., description='Year'),
@@ -99,6 +215,7 @@ def get_monthly_summary(
     total_income = 0.0
     other_income = 0.0
     falabella_payment_amount = 0.0
+    expense_breakdown: list[ExpenseBreakdownItem] = []
 
     if savings_month:
         mv_savings = db.query(Movement).filter(Movement.month_id == savings_month.id).all()
@@ -114,9 +231,12 @@ def get_monthly_summary(
                 confirmed=False,
             )
 
-        # Income totals
-        all_income = [mv.amount for mv in mv_savings_sorted if mv.type == 'Ingreso']
-        total_income = sum(all_income)
+        # Income totals — exclude internal bolsillo/rendimiento movements
+        real_income_mvs = [
+            mv for mv in mv_savings_sorted
+            if mv.type == 'Ingreso' and not _is_internal_movement(mv.description)
+        ]
+        total_income = sum(mv.amount for mv in real_income_mvs)
         salary_amount = salary_info.amount if salary_info else 0.0
         other_income = total_income - salary_amount
 
@@ -143,6 +263,41 @@ def get_monthly_summary(
             and mv not in falabella_payments
             and not _is_internal_movement(mv.description)
         )
+
+        # ── Expense breakdown (QUÉ SALIÓ) ─────────────────────────────────
+        # Accumulate amounts per group for all real egress movements
+        group_totals: dict[str, dict] = {}
+        for mv in mv_savings_sorted:
+            if mv.type != 'Egreso' or _is_internal_movement(mv.description):
+                continue
+            key = _classify_expense(mv.description)
+            if key not in group_totals:
+                group_totals[key] = {'amount': 0.0, 'count': 0}
+            group_totals[key]['amount'] += mv.amount
+            group_totals[key]['count'] += 1
+
+        # Build ordered list: defined groups first, then otras_compras
+        group_meta = {g['key']: g for g in _EXPENSE_GROUPS}
+        group_meta['otras_compras'] = {
+            'key': 'otras_compras', 'label': 'Otras compras', 'icon': '🛒',
+        }
+        for g_key in [g['key'] for g in _EXPENSE_GROUPS] + ['otras_compras']:
+            totals = group_totals.get(g_key)
+            if not totals or totals['amount'] <= 0:
+                continue
+            meta = group_meta[g_key]
+            tooltip: str | None = None
+            if g_key == 'falabella':
+                prev_year, prev_month_num = _prev_month(year, month)
+                prev_month_label = _MONTH_NAMES_ES[prev_month_num - 1]
+                tooltip = f'Cubre consumos del extracto {prev_month_label}'
+            expense_breakdown.append(ExpenseBreakdownItem(
+                label=meta['label'],
+                icon=meta['icon'],
+                amount=totals['amount'],
+                tooltip=tooltip,
+                count=totals['count'],
+            ))
 
         # Opening / closing balance approximation from cumulative amounts
         opening_balance = 0.0
@@ -217,8 +372,32 @@ def get_monthly_summary(
 
     patrimonio_neto = patrimonio_davivienda - deuda_falabella
 
+    # ── Month status ──────────────────────────────────────────────────────
+    month_status = _determine_month_status(
+        year, month,
+        has_savings=savings_month is not None,
+        has_credit=credit_month is not None,
+        db=db,
+    )
+
+    # ── Next Falabella payment confirmation (for ACTIVO/CERRADO) ─────────
+    next_payment_confirmed = False
+    next_payment_confirmation_date: str | None = None
+    next_payment_confirmation_amount = 0.0
+
+    if credit_info and credit_info.next_payment_total > 0 and month_status == 'CERRADO':
+        conf_amount, conf_date = _find_confirmed_falabella_payment(
+            year, month, credit_info.next_payment_total, db,
+        )
+        if conf_date:
+            next_payment_confirmed = True
+            next_payment_confirmation_date = conf_date
+            next_payment_confirmation_amount = conf_amount
+
     # ── Balance ───────────────────────────────────────────────────────────
     balance_info: BalanceSummary | None = None
+    ahorro_real: float | None = None
+
     if savings_info or credit_info:
         card_payment = credit_info.payment_made if credit_info else falabella_payment_amount
         other_exp = savings_info.other_expenses if savings_info else 0.0
@@ -235,10 +414,15 @@ def get_monthly_summary(
             balance_change=bal_change,
         )
 
+        # Ahorro real = diferencia - confirmed next Falabella payment (CERRADO only)
+        if month_status == 'CERRADO' and next_payment_confirmed:
+            ahorro_real = diff - next_payment_confirmation_amount
+
     return MonthlySummary(
         year=year,
         month=month,
         month_label=month_label,
+        month_status=month_status,
         salary=salary_info,
         other_income=other_income,
         total_income=total_income,
@@ -249,6 +433,11 @@ def get_monthly_summary(
         has_credit=credit_month is not None,
         patrimonio_davivienda=patrimonio_davivienda,
         patrimonio_neto=patrimonio_neto,
+        expense_breakdown=expense_breakdown,
+        next_payment_confirmed=next_payment_confirmed,
+        next_payment_confirmation_date=next_payment_confirmation_date,
+        next_payment_confirmation_amount=next_payment_confirmation_amount,
+        ahorro_real=ahorro_real,
     )
 
 

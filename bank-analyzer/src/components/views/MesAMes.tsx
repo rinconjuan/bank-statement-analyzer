@@ -41,6 +41,48 @@ function statementMeta(type: string) {
   return STATEMENT_TYPE_META[type] ?? { label: type, icon: '📄' }
 }
 
+// Keywords identifying internal bolsillo movements (must match backend list)
+const BOLSILLO_KEYWORDS = [
+  'bolsillo',
+  'transferencia de dinero a bolsillo',
+  'debito automatico al bolsillo',
+  'débito automático al bolsillo',
+  'abono automatico a bolsillo',
+  'abono automático a bolsillo',
+  'traslado rendimientos a bolsillo',
+  'traslado rendimientos',
+  'transferencia desde cuenta a bolsillo',
+  'transferencia de bolsillo a cuenta',
+  'abono de bolsillo a cuenta',
+  'abono rendimientos netos desde cuenta',
+  'rendimientos financieros',
+]
+
+function isInternalMovement(description: string): boolean {
+  const lower = description.toLowerCase()
+  return BOLSILLO_KEYWORDS.some(kw => lower.includes(kw))
+}
+
+// ── Month status badge ────────────────────────────────────────────────────────
+
+const STATUS_META: Record<string, { label: string; bg: string; color: string; dot: string }> = {
+  CERRADO:  { label: 'Cerrado',  bg: 'rgba(34,197,94,0.15)',  color: '#16a34a', dot: '✅' },
+  ACTIVO:   { label: 'Activo',   bg: 'rgba(234,179,8,0.15)',  color: '#ca8a04', dot: '🔄' },
+  PARCIAL:  { label: 'Parcial',  bg: 'rgba(148,163,184,0.15)', color: '#64748b', dot: '⏳' },
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const meta = STATUS_META[status] ?? STATUS_META['PARCIAL']
+  return (
+    <span
+      className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ background: meta.bg, color: meta.color }}
+    >
+      {meta.dot} {meta.label}
+    </span>
+  )
+}
+
 // ── Balance card ─────────────────────────────────────────────────────────────
 
 interface BalanceCardProps {
@@ -48,7 +90,13 @@ interface BalanceCardProps {
 }
 
 function BalanceCard({ summary }: BalanceCardProps) {
-  const { salary, other_income, credit_card, savings_account, balance, has_savings, has_credit, patrimonio_davivienda, patrimonio_neto } = summary
+  const {
+    salary, other_income, total_income, credit_card, savings_account, balance,
+    has_savings, has_credit, patrimonio_davivienda, patrimonio_neto,
+    month_status, expense_breakdown,
+    next_payment_confirmed, next_payment_confirmation_date,
+    next_payment_confirmation_amount, ahorro_real,
+  } = summary
 
   if (!has_savings && !has_credit) return null
 
@@ -57,75 +105,114 @@ function BalanceCard({ summary }: BalanceCardProps) {
 
   return (
     <div className="rounded-xl p-5 mb-6" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-base">📊</span>
-        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Balance del mes</span>
+
+      {/* ── Header: Balance del mes + status badge ── */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-base">📊</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Balance del mes</span>
+        </div>
+        <StatusBadge status={month_status} />
       </div>
 
-      {/* Salary */}
-      {has_savings && salary && (
-        <div className="flex items-start justify-between py-1.5">
-          <div>
-            <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              💰 Salario detectado
-            </span>
-            <div className="text-xs mt-0.5 pl-5" style={{ color: 'var(--text-muted)' }}>
-              {salary.description.substring(0, SALARY_DESC_MAX_LEN).trim()}, {fmtDateShort(salary.date)}
-            </div>
+      {/* ════ QUÉ ENTRÓ ════ */}
+      {has_savings && (
+        <>
+          <div className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>
+            QUÉ ENTRÓ
           </div>
-          <span className="text-sm font-mono font-semibold ml-4 flex-shrink-0" style={{ color: 'var(--accent-green)' }}>
-            {fmt(salary.amount)}
-          </span>
-        </div>
-      )}
 
-      {/* Other income */}
-      {has_savings && other_income > 0 && (
-        <div className="flex items-center justify-between py-1">
-          <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Otros ingresos</span>
-          <span className="text-sm font-mono font-semibold" style={{ color: 'var(--accent-green)' }}>
-            {fmt(other_income)}
-          </span>
-        </div>
-      )}
-
-      {/* Credit card payment */}
-      {has_credit && credit_card && credit_card.payment_made > 0 && (
-        <div className="flex items-start justify-between py-1.5">
-          <div>
-            <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              💳 Pagaste a Falabella
-              {credit_card.payment_count > 1 && ` (${credit_card.payment_count} pagos)`}
-              {credit_card.payment_confirmed && (
-                <span className="ml-1 text-xs" style={{ color: 'var(--accent-green)' }}>✓</span>
-              )}
-            </span>
-            <div className="text-xs mt-0.5 pl-5" style={{ color: 'var(--text-muted)' }}>
-              {credit_card.payment_count > 1
-                ? `entre ${fmtDateShort(credit_card.payment_date)} y ${fmtDateShort(credit_card.payment_date_end)}`
-                : `el ${fmtDateShort(credit_card.payment_date)}`}
+          {salary && (
+            <div className="flex items-start justify-between py-1.5">
+              <div>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  💰 Salario
+                </span>
+                <div className="text-xs mt-0.5 pl-5" style={{ color: 'var(--text-muted)' }}>
+                  {salary.description.substring(0, SALARY_DESC_MAX_LEN).trim()}, {fmtDateShort(salary.date)}
+                </div>
+              </div>
+              <span className="text-sm font-mono font-semibold ml-4 flex-shrink-0" style={{ color: 'var(--accent-green)' }}>
+                + {fmt(salary.amount)}
+              </span>
             </div>
+          )}
+
+          {other_income > 0 && (
+            <div className="flex items-center justify-between py-1">
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Otros ingresos</span>
+              <span className="text-sm font-mono font-semibold" style={{ color: 'var(--accent-green)' }}>
+                + {fmt(other_income)}
+              </span>
+            </div>
+          )}
+
+          {/* Total ingresos */}
+          <div
+            className="flex items-center justify-between py-1 mt-1"
+            style={{ borderTop: '1px solid var(--border)' }}
+          >
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Total ingresos</span>
+            <span className="text-xs font-mono font-semibold" style={{ color: 'var(--accent-green)' }}>
+              + {fmt(total_income)}
+            </span>
           </div>
-          <span className="text-sm font-mono font-semibold ml-4 flex-shrink-0" style={{ color: 'var(--accent-green)' }}>
-            {fmt(credit_card.payment_made)}
-          </span>
-        </div>
+        </>
       )}
 
-      {/* Savings other expenses */}
-      {has_savings && savings_account && savings_account.other_expenses > 0 && (
-        <div className="flex items-center justify-between py-1">
-          <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>🏦 Otros gastos Davivienda</span>
-          <span className="text-sm font-mono font-semibold" style={{ color: 'var(--accent-red)' }}>
-            {fmt(savings_account.other_expenses)}
-          </span>
-        </div>
+      {/* ════ QUÉ SALIÓ ════ */}
+      {has_savings && expense_breakdown.length > 0 && (
+        <>
+          <div className="text-xs font-semibold uppercase tracking-widest mt-4 mb-1.5" style={{ color: 'var(--text-muted)' }}>
+            QUÉ SALIÓ
+          </div>
+
+          {expense_breakdown.map((item, i) => (
+            <div key={i} className="flex items-start justify-between py-1.5">
+              <div>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  {item.icon} {item.label}
+                  {item.count > 1 && (
+                    <span className="ml-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      ({item.count} pagos)
+                    </span>
+                  )}
+                </span>
+                {item.tooltip && (
+                  <div className="text-xs mt-0.5 pl-5 italic" style={{ color: 'var(--text-muted)' }}>
+                    {item.tooltip}
+                  </div>
+                )}
+              </div>
+              <span className="text-sm font-mono font-semibold ml-4 flex-shrink-0" style={{ color: 'var(--accent-red)' }}>
+                - {fmt(item.amount)}
+              </span>
+            </div>
+          ))}
+
+          {/* Total salidas */}
+          {balance && (
+            <div
+              className="flex items-center justify-between py-1 mt-1"
+              style={{ borderTop: '1px solid var(--border)' }}
+            >
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Total salidas</span>
+              <span className="text-xs font-mono font-semibold" style={{ color: 'var(--accent-red)' }}>
+                - {fmt(balance.card_payment + balance.other_expenses)}
+              </span>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Divider + difference */}
+      {/* ════ RESULTADO ════ */}
       {balance && (
         <>
           <div className="my-3" style={{ borderTop: '1px solid var(--border)' }} />
+          <div className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>
+            RESULTADO
+          </div>
+
           <div className="flex items-center justify-between py-1">
             <span className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>Diferencia del mes</span>
             <span
@@ -135,26 +222,68 @@ function BalanceCard({ summary }: BalanceCardProps) {
               {(balance.difference >= 0 ? '+' : '') + fmt(balance.difference)}
             </span>
           </div>
-        </>
-      )}
 
-      {/* Next Falabella payment */}
-      {has_credit && credit_card && credit_card.next_payment_total > 0 && (
-        <>
-          <div className="my-3" style={{ borderTop: '1px solid var(--border)' }} />
-          <div className="flex items-center justify-between py-1">
-            <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Próximo pago Falabella</span>
-            <span className="text-sm font-mono font-semibold" style={{ color: 'var(--accent-red)' }}>
-              {fmt(credit_card.next_payment_total)}
-            </span>
-          </div>
-          {credit_card.next_payment_date && (
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Fecha límite</span>
-              <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                {credit_card.next_payment_date}
-              </span>
-            </div>
+          {/* Next Falabella payment (ACTIVO/PARCIAL with credit) */}
+          {has_credit && credit_card && credit_card.next_payment_total > 0 && !next_payment_confirmed && (
+            <>
+              <div className="mt-3 pt-3" style={{ borderTop: '1px dashed var(--border)' }}>
+                <div className="flex items-start justify-between py-1">
+                  <div>
+                    <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      ⏳ Próximo pago Falabella
+                    </span>
+                    {credit_card.next_payment_date && (
+                      <div className="text-xs mt-0.5 pl-5" style={{ color: 'var(--text-muted)' }}>
+                        antes del {credit_card.next_payment_date}
+                      </div>
+                    )}
+                    <div className="text-xs mt-0.5 pl-5 italic" style={{ color: 'var(--text-muted)' }}>
+                      Todavía no reflejado en cuenta
+                    </div>
+                  </div>
+                  <span className="text-sm font-mono font-semibold ml-4 flex-shrink-0" style={{ color: 'var(--accent-red)' }}>
+                    - {fmt(credit_card.next_payment_total)}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Confirmed payment (CERRADO) */}
+          {next_payment_confirmed && next_payment_confirmation_amount > 0 && (
+            <>
+              <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <span className="text-sm" style={{ color: 'var(--accent-green)' }}>
+                      ✅ Pago Falabella confirmado
+                    </span>
+                    {next_payment_confirmation_date && (
+                      <div className="text-xs mt-0.5 pl-5" style={{ color: 'var(--text-muted)' }}>
+                        el {fmtDateShort(next_payment_confirmation_date)}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm font-mono font-semibold ml-4 flex-shrink-0" style={{ color: 'var(--accent-red)' }}>
+                    - {fmt(next_payment_confirmation_amount)}
+                  </span>
+                </div>
+                {ahorro_real != null && (
+                  <div
+                    className="flex items-center justify-between py-1 mt-1"
+                    style={{ borderTop: '1px solid var(--border)' }}
+                  >
+                    <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Ahorro real del mes</span>
+                    <span
+                      className="text-sm font-mono font-bold"
+                      style={{ color: ahorro_real >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}
+                    >
+                      {(ahorro_real >= 0 ? '+' : '') + fmt(ahorro_real)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </>
       )}
@@ -251,8 +380,10 @@ function StatementSection({
   statementType, bankName, extractoLabel, movements, categories, onRefresh,
 }: StatementSectionProps) {
   const meta = statementMeta(statementType)
-  const income = movements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0)
-  const expense = movements.filter(m => m.type === 'Egreso').reduce((s, m) => s + m.amount, 0)
+  // Exclude internal bolsillo movements from header totals
+  const realMovements = movements.filter(m => !isInternalMovement(m.description))
+  const income = realMovements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0)
+  const expense = realMovements.filter(m => m.type === 'Egreso').reduce((s, m) => s + m.amount, 0)
   const isCreditCard = statementType === 'tarjeta_credito'
 
   return (
@@ -332,12 +463,21 @@ export function MesAMes({ categories }: MesAMesProps) {
   const [summary, setSummary] = useState<MonthlySummary | null>(null)
   const [loadingMovements, setLoadingMovements] = useState(false)
   const [loadingSummary, setLoadingSummary] = useState(false)
+  // Cache of month statuses per calendar month key (e.g. '2026-02')
+  const [monthStatuses, setMonthStatuses] = useState<Record<string, string>>({})
 
   // Load available calendar months and all statement months (for bank name lookup)
   useEffect(() => {
     fetchCalendarMonths().then((months) => {
       setCalMonths(months)
       if (months.length > 0) setSelected(months[0])
+      // Pre-fetch summaries to populate status badges in sidebar
+      months.forEach((ym) => {
+        const [yearStr, monthStr] = ym.split('-')
+        fetchMonthlySummary(parseInt(yearStr, 10), parseInt(monthStr, 10))
+          .then((s) => setMonthStatuses(prev => ({ ...prev, [ym]: s.month_status })))
+          .catch(() => {})
+      })
     }).catch(() => {})
     fetchMonths().then(setAllMonths).catch(() => {})
   }, [])
@@ -356,7 +496,10 @@ export function MesAMes({ categories }: MesAMesProps) {
       .finally(() => setLoadingMovements(false))
 
     fetchMonthlySummary(year, month)
-      .then(setSummary)
+      .then((s) => {
+        setSummary(s)
+        setMonthStatuses(prev => ({ ...prev, [ym]: s.month_status }))
+      })
       .catch(() => setSummary(null))
       .finally(() => setLoadingSummary(false))
   }, [])
@@ -400,7 +543,7 @@ export function MesAMes({ categories }: MesAMesProps) {
       {/* ── Month selector sidebar ── */}
       <div
         className="rounded-xl flex-shrink-0 overflow-hidden"
-        style={{ width: 200, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+        style={{ width: 220, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
       >
         <div
           className="px-4 py-3 text-xs font-semibold uppercase tracking-widest"
@@ -409,20 +552,29 @@ export function MesAMes({ categories }: MesAMesProps) {
           Meses calendario
         </div>
         <div className="flex flex-col overflow-y-auto" style={{ maxHeight: 480 }}>
-          {calMonths.map((ym) => (
-            <button
-              key={ym}
-              onClick={() => setSelected(ym)}
-              className="text-left px-4 py-2.5 text-sm transition-all"
-              style={{
-                background: selected === ym ? 'rgba(79,127,255,0.15)' : 'transparent',
-                color: selected === ym ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                borderLeft: selected === ym ? '2px solid var(--accent-primary)' : '2px solid transparent',
-              }}
-            >
-              📅 {calendarMonthLabel(ym)}
-            </button>
-          ))}
+          {calMonths.map((ym) => {
+            const status = monthStatuses[ym]
+            const statusDot = status ? (STATUS_META[status]?.dot ?? null) : null
+            return (
+              <button
+                key={ym}
+                onClick={() => setSelected(ym)}
+                className="text-left px-4 py-2.5 text-sm transition-all"
+                style={{
+                  background: selected === ym ? 'rgba(79,127,255,0.15)' : 'transparent',
+                  color: selected === ym ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  borderLeft: selected === ym ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                }}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span>📅 {calendarMonthLabel(ym)}</span>
+                  {statusDot && (
+                    <span className="text-xs flex-shrink-0" title={status}>{statusDot}</span>
+                  )}
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
 
