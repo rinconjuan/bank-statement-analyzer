@@ -21,6 +21,17 @@ function daysUntil(dateStr: string | null | undefined): number | null {
   return Math.round((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+function formatDateShort(dateStr: string): string {
+  // DD/MM/YYYY → "15 dic"
+  const MONTH_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  const parts = dateStr.split('/')
+  if (parts.length !== 3) return dateStr
+  const day = parseInt(parts[0], 10)
+  const mon = parseInt(parts[1], 10)
+  if (!day || !mon || mon < 1 || mon > 12) return dateStr
+  return `${day} ${MONTH_SHORT[mon - 1]}`
+}
+
 interface Props {
   month: MonthWithStats
 }
@@ -70,9 +81,25 @@ export function CreditCardSummary({ month }: Props) {
               <div className="font-display text-2xl tracking-tight" style={{ color: 'var(--accent-green)' }}>
                 {formatAmount(summary.pago_realizado.amount)}
               </div>
-              <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                el {summary.pago_realizado.date}
-              </div>
+              {summary.pago_realizado.count > 1 ? (
+                <>
+                  <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    entre el {formatDateShort(summary.pago_realizado.date)} y {formatDateShort(summary.pago_realizado.date_end ?? summary.pago_realizado.date)}
+                  </div>
+                  <div className="mt-2 flex flex-col gap-0.5">
+                    {summary.pagos_realizados.map((p, i) => (
+                      <div key={i} className="flex justify-between text-xs">
+                        <span style={{ color: 'var(--text-muted)' }}>{p.date}</span>
+                        <span className="font-mono" style={{ color: 'var(--accent-green)' }}>{formatAmount(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                  el {summary.pago_realizado.date}
+                </div>
+              )}
             </>
           ) : (
             <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Sin pago registrado</div>

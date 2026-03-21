@@ -148,7 +148,11 @@ class CreditSummaryMonth(BaseModel):
 
 
 class CreditSummary(BaseModel):
-    pago_realizado: dict | None = None   # {'amount': float, 'date': str}
+    # pago_realizado: aggregate of all payments in the statement.
+    # Keys: 'amount' (total), 'date' (first payment), 'date_end' (last, if multiple), 'count' (N)
+    pago_realizado: dict | None = None
+    # List of each individual payment movement (es_pago_tarjeta=True), sorted by date
+    pagos_realizados: list[dict] = []
     pago_minimo: float = 0.0
     pago_total: float = 0.0
     fecha_limite: str | None = None

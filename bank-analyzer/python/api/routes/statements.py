@@ -173,47 +173,118 @@ def get_months(db: Session = Depends(get_db)):
     return result
 
 
+_FIXED_CHARGE_KEYWORDS = ('COBRO SEGURO VIDA DEUDOR', 'COBRO CUOTA MANEJO')
+
+
+def _is_fixed_charge(description: str) -> bool:
+    """Return True for bank-fee lines that always apply to the current statement
+    even though they carry cuota_mes == 0 in the table."""
+    desc_upper = description.upper()
+    return any(kw in desc_upper for kw in _FIXED_CHARGE_KEYWORDS)
+
+
+def _date_sort_key(date_str: str) -> tuple:
+    """Return (year, month, day) tuple for DD/MM/YYYY so dates can be sorted."""
+    parts = date_str.split('/')
+    if len(parts) == 3:
+        try:
+            return (int(parts[2]), int(parts[1]), int(parts[0]))
+        except ValueError:
+            pass
+    return (0, 0, 0)
+
+
 @router.get('/months/{month_id}/credit-summary', response_model=CreditSummary)
 def get_credit_summary(month_id: int, db: Session = Depends(get_db)):
-    """Return a detailed credit card summary for a given statement month."""
+    """Return a detailed credit card summary for a given statement month.
+
+    Implements the following rules extracted from real Falabella statements:
+
+    Rule 1 – aplica_este_extracto:
+        cuota_mes > 0  →  applies to this statement
+        COBRO SEGURO VIDA DEUDOR / COBRO CUOTA MANEJO → always apply (no cuota_mes in table)
+        Everything else with cuota_mes == 0 → deferred from a previous period
+
+    Rule 2 – Consumos por mes:
+        Group by the movement's calendar month.
+        total_consumos = SUM(amount) excluding payments
+        total_cuota    = SUM(cuota_mes)
+        aplica_extracto = total_cuota > 0 OR any fixed charge in that month
+
+    Rule 3 – Totals:
+        total_consumos_nuevos = SUM(cuota_mes where cuota_mes > 0)
+                               + SUM(amount for fixed-charge lines)
+        total_diferidos       = SUM(amount where cuota_mes == 0 AND NOT payment AND NOT fixed_charge)
+
+    Rule 4 – Multiple payments:
+        All es_pago_tarjeta movements are collected; pago_realizado holds the
+        aggregate (total amount + first/last date); pagos_realizados lists each.
+    """
     month = db.query(Month).filter(Month.id == month_id).first()
     if not month:
         raise HTTPException(404, 'Month not found')
 
     movements = db.query(Movement).filter(Movement.month_id == month_id).all()
 
-    # Payment movement (es_pago_tarjeta)
-    pago_realizado = None
+    # ── Collect all payment movements (Rule 4) ────────────────────────────
+    pagos = []
     for mv in movements:
         if mv.es_pago_tarjeta:
-            pago_realizado = {'amount': mv.amount, 'date': mv.date}
-            break
+            pagos.append({'amount': mv.amount, 'date': mv.date})
 
-    # Consumos por mes (group by calendar month)
-    monthly: dict = defaultdict(lambda: {'total_consumos': 0.0, 'total_cuota': 0.0,
-                                          'aplica': False, 'count': 0})
+    pagos.sort(key=lambda p: _date_sort_key(p['date']))
+
+    pago_realizado = None
+    if pagos:
+        total_pagado = sum(p['amount'] for p in pagos)
+        if len(pagos) == 1:
+            pago_realizado = {'amount': total_pagado, 'date': pagos[0]['date'], 'count': 1}
+        else:
+            pago_realizado = {
+                'amount': total_pagado,
+                'date': pagos[0]['date'],
+                'date_end': pagos[-1]['date'],
+                'count': len(pagos),
+            }
+
+    # ── Monthly grouping (Rules 1, 2, 3) ─────────────────────────────────
+    monthly: dict = defaultdict(lambda: {
+        'total_consumos': 0.0,
+        'total_cuota': 0.0,
+        'has_fixed_charge': False,
+        'count': 0,
+    })
     total_consumos_nuevos = 0.0
     total_diferidos = 0.0
 
     for mv in movements:
+        if mv.es_pago_tarjeta:
+            continue
         if mv.type != 'Egreso':
             continue
+
+        is_fixed = _is_fixed_charge(mv.description)
+        cuota = mv.cuota_mes or 0.0
+
         ym = _date_to_ym(mv.date)
         monthly[ym]['total_consumos'] += mv.amount
-        monthly[ym]['total_cuota'] += mv.cuota_mes or 0.0
+        monthly[ym]['total_cuota'] += cuota
         monthly[ym]['count'] += 1
-        if mv.aplica_este_extracto:
-            monthly[ym]['aplica'] = True
-            total_consumos_nuevos += mv.cuota_mes or 0.0
-        if mv.es_diferido_anterior:
-            total_diferidos += mv.amount
+
+        if is_fixed:
+            monthly[ym]['has_fixed_charge'] = True
+            total_consumos_nuevos += mv.amount    # fixed charge → full amount applies
+        elif cuota > 0:
+            total_consumos_nuevos += cuota         # normal instalment/purchase
+        else:
+            total_diferidos += mv.amount           # deferred from prior period
 
     consumos_por_mes = [
         CreditSummaryMonth(
             mes=_ym_to_label(ym),
             total_consumos=data['total_consumos'],
             total_cuota=data['total_cuota'],
-            aplica_extracto=data['aplica'],
+            aplica_extracto=data['total_cuota'] > 0 or data['has_fixed_charge'],
             movimientos_count=data['count'],
         )
         for ym, data in sorted(monthly.items())
@@ -221,6 +292,7 @@ def get_credit_summary(month_id: int, db: Session = Depends(get_db)):
 
     return CreditSummary(
         pago_realizado=pago_realizado,
+        pagos_realizados=pagos,
         pago_minimo=month.min_payment or 0.0,
         pago_total=month.total_payment or 0.0,
         fecha_limite=month.fecha_limite_pago,

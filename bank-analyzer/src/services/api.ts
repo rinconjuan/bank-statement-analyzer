@@ -175,7 +175,10 @@ export interface CreditSummaryMonth {
 }
 
 export interface CreditSummary {
-  pago_realizado: { amount: number; date: string } | null
+  // Aggregate of all payments: 'amount' (total), 'date' (first), 'date_end' (last if multiple), 'count'
+  pago_realizado: { amount: number; date: string; date_end?: string; count: number } | null
+  // All individual payment movements, sorted by date
+  pagos_realizados: { amount: number; date: string }[]
   pago_minimo: number
   pago_total: number
   fecha_limite: string | null
