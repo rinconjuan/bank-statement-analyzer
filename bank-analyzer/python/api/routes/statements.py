@@ -91,8 +91,21 @@ async def upload_statement(
             now = datetime.now()
             month_num, year = now.month, now.year
 
-    # Calculate consumos_periodo: sum of cuota_mes for all movements
-    consumos_periodo = sum(m.get('cuota_mes', 0.0) for m in movements_data)
+    # Calculate consumos_periodo using the same rule as the credit-summary endpoint:
+    #   SUM(cuota_mes where cuota_mes > 0) + SUM(amount for fixed-charge lines)
+    consumos_periodo = 0.0
+    for m in movements_data:
+        if m.get('es_pago_tarjeta'):
+            continue
+        if m.get('type') != 'Egreso':
+            continue
+        cuota = m.get('cuota_mes') or 0.0
+        desc_upper = (m.get('description') or '').upper()
+        is_fixed = any(kw in desc_upper for kw in FIXED_CHARGE_KEYWORDS)
+        if is_fixed:
+            consumos_periodo += m.get('amount', 0.0)
+        elif cuota > 0:
+            consumos_periodo += cuota
 
     db_month = Month(
         year=year,

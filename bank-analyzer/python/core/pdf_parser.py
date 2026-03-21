@@ -225,10 +225,18 @@ def _extract_falabella_metadata(text: str) -> dict:
             if fecha:
                 metadata['fecha_limite_pago'] = fecha
         elif ('corte' in decoded) and metadata['fecha_corte'] is None:
-            fecha = _parse_es_date(decoded)
+            # Extract only the substring starting at 'corte' so that, when the
+            # line also contains the period-start date (e.g. "15 ene 2026 al
+            # 14 feb 2026 … corte: 14 feb 2026"), re.search does not pick up
+            # the earlier (wrong) date.
+            corte_idx = decoded.find('corte')
+            fecha = _parse_es_date(decoded[corte_idx:])
+            print(f"[DEBUG] fecha_corte candidate line: {decoded!r}")
+            print(f"[DEBUG] fecha_corte extracted: {fecha!r}")
             if fecha:
                 metadata['fecha_corte'] = fecha
 
+    print(f"[DEBUG] _extract_falabella_metadata result: {metadata}")
     return metadata
 
 

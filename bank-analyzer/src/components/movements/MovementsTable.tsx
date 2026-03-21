@@ -71,31 +71,37 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
     <div className="flex gap-4 items-start">
       {/* ── Main table column ── */}
       <div className="flex flex-col gap-3 flex-1 min-w-0">
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Buscar movimientos..."
-            className="text-sm rounded-lg px-3 py-1.5 flex-1 min-w-48"
-            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)', outline: 'none' }}
-          />
-          {/* Type filter */}
-          {['', 'Ingreso', 'Egreso'].map((t) => (
-            <button
-              key={t}
-              onClick={() => handleType(t)}
-              className="text-xs px-3 py-1.5 rounded-lg transition-all"
-              style={{
-                background: typeFilter === t ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                color: typeFilter === t ? '#fff' : 'var(--text-secondary)',
-                border: '1px solid var(--border)',
-              }}
-            >
-              {t || 'Todos'}
-            </button>
-          ))}
-          {/* Category pills */}
+        {/* ── SECCIÓN 1: Filtrar por ── */}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Filtrar por</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Buscar movimientos..."
+              className="text-sm rounded-lg px-3 py-1.5 flex-1 min-w-48"
+              style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)', outline: 'none' }}
+            />
+            {['', 'Ingreso', 'Egreso'].map((t) => (
+              <button
+                key={t}
+                onClick={() => handleType(t)}
+                className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                style={{
+                  background: typeFilter === t ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                  color: typeFilter === t ? '#fff' : 'var(--text-secondary)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                {t || 'Todos'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── SECCIÓN 2: Categorías ── */}
+        <div className="flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+          <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Categorías</span>
           <div className="flex gap-1 flex-wrap">
             <button
               onClick={() => handleCat(undefined)}
@@ -124,26 +130,29 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
           </div>
         </div>
 
-        {/* Credit card quick filters */}
+        {/* ── SECCIÓN 3: Estado (solo tarjeta de crédito) ── */}
         {isCreditCard && (
-          <div className="flex gap-2">
-            {(['all', 'aplican', 'diferidos', 'pagos'] as const).map((f) => {
-              const labels: Record<string, string> = { all: 'Todos', aplican: 'Aplican este mes', diferidos: 'Diferidos', pagos: 'Pagos' }
-              return (
-                <button
-                  key={f}
-                  onClick={() => setCreditFilter(f)}
-                  className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                  style={{
-                    background: creditFilter === f ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                    color: creditFilter === f ? '#fff' : 'var(--text-secondary)',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  {labels[f]}
-                </button>
-              )
-            })}
+          <div className="flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Estado</span>
+            <div className="flex gap-2 flex-wrap">
+              {(['all', 'aplican', 'diferidos', 'pagos'] as const).map((f) => {
+                const labels: Record<string, string> = { all: 'Todos', aplican: 'Aplican este mes', diferidos: 'Diferidos', pagos: 'Pagos' }
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setCreditFilter(f)}
+                    className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                    style={{
+                      background: creditFilter === f ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                      color: creditFilter === f ? '#fff' : 'var(--text-secondary)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    {labels[f]}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
