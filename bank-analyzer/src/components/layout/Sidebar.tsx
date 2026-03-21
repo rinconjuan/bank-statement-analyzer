@@ -13,8 +13,8 @@ interface SidebarProps {
   onSelectMonth: (id: number) => void
   onUploadClick: () => void
   onDeleteMonth: (id: number) => void
-  activeView: 'dashboard' | 'por_mes' | 'tendencias' | 'resumen' | 'settings'
-  onViewChange: (v: 'dashboard' | 'por_mes' | 'tendencias' | 'resumen' | 'settings') => void
+  activeView: 'dashboard' | 'mes_a_mes' | 'tendencias' | 'settings'
+  onViewChange: (v: 'dashboard' | 'mes_a_mes' | 'tendencias' | 'settings') => void
 }
 
 export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, onDeleteMonth, activeView, onViewChange }: SidebarProps) {
@@ -47,14 +47,14 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
           <span>📊</span> Dashboard
         </button>
         <button
-          onClick={() => onViewChange('por_mes')}
+          onClick={() => onViewChange('mes_a_mes')}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all mb-1"
           style={{
-            background: activeView === 'por_mes' ? 'var(--accent-primary)' : 'transparent',
-            color: activeView === 'por_mes' ? '#fff' : 'var(--text-secondary)',
+            background: activeView === 'mes_a_mes' ? 'var(--accent-primary)' : 'transparent',
+            color: activeView === 'mes_a_mes' ? '#fff' : 'var(--text-secondary)',
           }}
         >
-          <span>📅</span> Por Mes
+          <span>📅</span> Mes a Mes
         </button>
         <button
           onClick={() => onViewChange('tendencias')}
@@ -65,16 +65,6 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
           }}
         >
           <span>📈</span> Tendencias
-        </button>
-        <button
-          onClick={() => onViewChange('resumen')}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all mb-1"
-          style={{
-            background: activeView === 'resumen' ? 'var(--accent-primary)' : 'transparent',
-            color: activeView === 'resumen' ? '#fff' : 'var(--text-secondary)',
-          }}
-        >
-          <span>🗂️</span> Resumen
         </button>
         <button
           onClick={() => onViewChange('settings')}
