@@ -25,20 +25,14 @@ _MONTH_NAMES_ES = [
 
 # Keywords identifying internal bolsillo/pocket movements that should NOT count
 # as real expenses or income in the monthly balance.
+# 'bolsillo' is intentionally generic — it catches every known variant
+# (débito automático al bolsillo, transferencia desde/hacia bolsillo, etc.)
+# 'rendimientos financieros' is intentionally NOT listed here because those are
+# real earnings that enter the account and must be counted as income.
 _INTERNAL_MOVEMENT_KEYWORDS = (
-    'bolsillo',
-    'transferencia de dinero a bolsillo',
-    'debito automatico al bolsillo',
-    'débito automático al bolsillo',
-    'abono automatico a bolsillo',
-    'abono automático a bolsillo',
-    'traslado rendimientos a bolsillo',
+    'bolsillo',                 # catches any movement containing this word
     'traslado rendimientos',
-    'transferencia desde cuenta a bolsillo',
-    'transferencia de bolsillo a cuenta',
-    'abono de bolsillo a cuenta',
-    'abono rendimientos netos desde cuenta',
-    'rendimientos financieros',
+    'abono rendimientos netos',
 )
 
 # Expense classification groups for the QUÉ SALIÓ breakdown.

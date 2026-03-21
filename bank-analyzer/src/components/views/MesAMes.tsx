@@ -42,20 +42,12 @@ function statementMeta(type: string) {
 }
 
 // Keywords identifying internal bolsillo movements (must match backend list)
+// Keywords identifying internal bolsillo/pocket movements — mirrors backend _INTERNAL_MOVEMENT_KEYWORDS.
+// 'rendimientos financieros' is intentionally NOT listed: those are real income.
 const BOLSILLO_KEYWORDS = [
-  'bolsillo',
-  'transferencia de dinero a bolsillo',
-  'debito automatico al bolsillo',
-  'débito automático al bolsillo',
-  'abono automatico a bolsillo',
-  'abono automático a bolsillo',
-  'traslado rendimientos a bolsillo',
+  'bolsillo',               // catches every variant (débito/abono/transferencia al bolsillo, etc.)
   'traslado rendimientos',
-  'transferencia desde cuenta a bolsillo',
-  'transferencia de bolsillo a cuenta',
-  'abono de bolsillo a cuenta',
-  'abono rendimientos netos desde cuenta',
-  'rendimientos financieros',
+  'abono rendimientos netos',
 ]
 
 function isInternalMovement(description: string): boolean {
