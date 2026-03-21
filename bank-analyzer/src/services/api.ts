@@ -44,6 +44,14 @@ export interface Movement {
   applies_this_month: boolean | null
   statement_type: string
   category: Category | null
+  // Credit card extended fields
+  cuota_mes: number
+  valor_pendiente: number
+  num_cuotas_actual: number | null
+  num_cuotas_total: number | null
+  aplica_este_extracto: boolean
+  es_pago_tarjeta: boolean
+  es_diferido_anterior: boolean
 }
 
 export interface MonthWithStats {
@@ -59,6 +67,11 @@ export interface MonthWithStats {
   movements_count: number
   min_payment: number | null
   total_payment: number | null
+  fecha_corte: string | null
+  fecha_limite_pago: string | null
+  cupo_total: number
+  cupo_disponible: number
+  consumos_periodo: number
 }
 
 export interface UploadResponse {
@@ -151,3 +164,27 @@ export const deleteCategory = (id: number) =>
 // Export
 export const getExportUrl = (type: 'csv' | 'excel' | 'report', month_id: number) =>
   `${getBaseUrl()}/api/v1/export/${type}?month_id=${month_id}`
+
+// Credit card summary
+export interface CreditSummaryMonth {
+  mes: string
+  total_consumos: number
+  total_cuota: number
+  aplica_extracto: boolean
+  movimientos_count: number
+}
+
+export interface CreditSummary {
+  pago_realizado: { amount: number; date: string } | null
+  pago_minimo: number
+  pago_total: number
+  fecha_limite: string | null
+  cupo_total: number
+  cupo_disponible: number
+  consumos_por_mes: CreditSummaryMonth[]
+  total_consumos_nuevos: number
+  total_diferidos: number
+}
+
+export const fetchCreditSummary = (month_id: number) =>
+  request<CreditSummary>(`/api/v1/statements/months/${month_id}/credit-summary`)

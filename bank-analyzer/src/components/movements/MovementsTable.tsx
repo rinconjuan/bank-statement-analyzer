@@ -8,16 +8,20 @@ interface MovementsTableProps {
   onFiltersChange: (f: { category_id?: number; type?: string; search?: string }) => void
   onRefresh: () => void
   loading: boolean
+  statementType?: string
 }
 
 function formatAmount(n: number): string {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
 }
 
-export function MovementsTable({ movements, categories, onFiltersChange, onRefresh, loading }: MovementsTableProps) {
+export function MovementsTable({ movements, categories, onFiltersChange, onRefresh, loading, statementType = 'cuenta_ahorro' }: MovementsTableProps) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [catFilter, setCatFilter] = useState<number | undefined>(undefined)
+  const [creditFilter, setCreditFilter] = useState<'all' | 'aplican' | 'diferidos' | 'pagos'>('all')
+
+  const isCreditCard = statementType === 'tarjeta_credito'
 
   const applyFilters = (s: string, t: string, c: number | undefined) => {
     onFiltersChange({ search: s || undefined, type: t || undefined, category_id: c })
@@ -27,10 +31,19 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
   const handleType = (v: string) => { setTypeFilter(v); applyFilters(search, v, catFilter) }
   const handleCat = (v: number | undefined) => { setCatFilter(v); applyFilters(search, typeFilter, v) }
 
+  // Apply credit card quick filter on the client side
+  const visibleMovements = useMemo(() => {
+    if (!isCreditCard || creditFilter === 'all') return movements
+    if (creditFilter === 'aplican') return movements.filter(m => m.aplica_este_extracto)
+    if (creditFilter === 'diferidos') return movements.filter(m => m.es_diferido_anterior)
+    if (creditFilter === 'pagos') return movements.filter(m => m.es_pago_tarjeta)
+    return movements
+  }, [movements, isCreditCard, creditFilter])
+
   /** Aggregate totals per category from the currently visible movements, split by type */
   const categoryTotals = useMemo(() => {
     const map = new Map<string, { name: string; icon: string; color: string; income: number; expense: number; count: number }>()
-    for (const m of movements) {
+    for (const m of visibleMovements) {
       const key = m.category?.name ?? 'Sin categoría'
       const existing = map.get(key)
       if (existing) {
@@ -49,10 +62,10 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
       }
     }
     return Array.from(map.values()).sort((a, b) => (b.income + b.expense) - (a.income + a.expense))
-  }, [movements])
+  }, [visibleMovements])
 
-  const grandIncome = useMemo(() => movements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0), [movements])
-  const grandExpense = useMemo(() => movements.filter(m => m.type === 'Egreso').reduce((s, m) => s + m.amount, 0), [movements])
+  const grandIncome = useMemo(() => visibleMovements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0), [visibleMovements])
+  const grandExpense = useMemo(() => visibleMovements.filter(m => m.type === 'Egreso').reduce((s, m) => s + m.amount, 0), [visibleMovements])
 
   return (
     <div className="flex gap-4 items-start">
@@ -111,6 +124,29 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
           </div>
         </div>
 
+        {/* Credit card quick filters */}
+        {isCreditCard && (
+          <div className="flex gap-2">
+            {(['all', 'aplican', 'diferidos', 'pagos'] as const).map((f) => {
+              const labels: Record<string, string> = { all: 'Todos', aplican: 'Aplican este mes', diferidos: 'Diferidos', pagos: 'Pagos' }
+              return (
+                <button
+                  key={f}
+                  onClick={() => setCreditFilter(f)}
+                  className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                  style={{
+                    background: creditFilter === f ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                    color: creditFilter === f ? '#fff' : 'var(--text-secondary)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {labels[f]}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Table */}
         <div
           className="rounded-xl overflow-hidden"
@@ -120,7 +156,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
             <div className="flex items-center justify-center py-12" style={{ color: 'var(--text-muted)' }}>
               Cargando movimientos...
             </div>
-          ) : movements.length === 0 ? (
+          ) : visibleMovements.length === 0 ? (
             <div className="flex items-center justify-center py-12" style={{ color: 'var(--text-muted)' }}>
               No hay movimientos
             </div>
@@ -133,13 +169,16 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
                     <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Descripción</th>
                     <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Monto</th>
                     <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Tipo</th>
+                    {isCreditCard && (
+                      <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Cuota este mes</th>
+                    )}
                     <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Categoría</th>
                     <th className="px-4 py-2.5 text-xs font-medium text-center" style={{ color: 'var(--text-muted)' }} title="Marcar si aplica para el pago de este mes">Aplica</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {movements.map((m) => (
-                    <MovementRow key={m.id} movement={m} categories={categories} onUpdated={onRefresh} />
+                  {visibleMovements.map((m) => (
+                    <MovementRow key={m.id} movement={m} categories={categories} onUpdated={onRefresh} showCuota={isCreditCard} />
                   ))}
                 </tbody>
               </table>
@@ -147,7 +186,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
           )}
         </div>
         <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {movements.length} movimientos
+          {visibleMovements.length} movimientos{visibleMovements.length !== movements.length ? ` (de ${movements.length})` : ''}
         </div>
       </div>
 

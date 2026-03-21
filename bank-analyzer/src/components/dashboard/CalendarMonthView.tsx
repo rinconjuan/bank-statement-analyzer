@@ -26,12 +26,13 @@ function statementMeta(type: string) {
 interface StatementSectionProps {
   statementType: string
   bankName?: string | null
+  extractoLabel?: string | null
   movements: Movement[]
   categories: Category[]
   onRefresh: () => void
 }
 
-function StatementSection({ statementType, bankName, movements, categories, onRefresh }: StatementSectionProps) {
+function StatementSection({ statementType, bankName, extractoLabel, movements, categories, onRefresh }: StatementSectionProps) {
   const meta = statementMeta(statementType)
   const income = movements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0)
   const expense = movements.filter(m => m.type === 'Egreso').reduce((s, m) => s + m.amount, 0)
@@ -49,6 +50,11 @@ function StatementSection({ statementType, bankName, movements, categories, onRe
           {bankName && (
             <span className="text-xs px-2 py-0.5 rounded-full font-medium capitalize" style={{ background: 'var(--bg-primary)', color: 'var(--accent-primary)' }}>
               {bankName}
+            </span>
+          )}
+          {extractoLabel && (
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(79,127,255,0.12)', color: 'var(--accent-primary)', border: '1px solid rgba(79,127,255,0.3)' }}>
+              Extracto {extractoLabel}
             </span>
           )}
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>
@@ -146,6 +152,13 @@ export function CalendarMonthView({ categories }: CalendarMonthViewProps) {
     return ia - ib
   })
 
+  // Detect if multiple credit card statements contribute movements to the selected calendar month
+  const creditMonthIds = uniqueMonthIds.filter(id => {
+    const st = monthIdToStats.get(id)?.statement_type ?? movements.find(m => m.month_id === id)?.statement_type
+    return st === 'tarjeta_credito'
+  })
+  const showMultiStatementBanner = creditMonthIds.length > 1
+
   if (calMonths.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -198,6 +211,20 @@ export function CalendarMonthView({ categories }: CalendarMonthViewProps) {
               </span>
             </div>
 
+            {/* Multi-statement banner for credit cards */}
+            {showMultiStatementBanner && (
+              <div
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl mb-4 text-sm"
+                style={{ background: 'rgba(234,179,8,0.10)', border: '1px solid rgba(234,179,8,0.30)', color: '#ca8a04' }}
+              >
+                <span>⚠️</span>
+                <span>
+                  Tienes movimientos de {calendarMonthLabel(selected)} en{' '}
+                  <strong>{creditMonthIds.length} extractos diferentes</strong>. Mostrando todos consolidados.
+                </span>
+              </div>
+            )}
+
             {loading ? (
               <div
                 className="rounded-xl flex items-center justify-center py-12"
@@ -218,11 +245,16 @@ export function CalendarMonthView({ categories }: CalendarMonthViewProps) {
                 const stats = monthIdToStats.get(monthId)
                 const movsForMonth = movements.filter(m => m.month_id === monthId)
                 const statementType = stats?.statement_type ?? movsForMonth[0]?.statement_type ?? ''
+                // Show extracto label only when multiple credit card statements are present
+                const extractoLabel = showMultiStatementBanner && statementType === 'tarjeta_credito' && stats
+                  ? MONTH_NAMES_ES[(stats.month - 1)] + ' ' + stats.year
+                  : null
                 return (
                   <StatementSection
                     key={monthId}
                     statementType={statementType}
                     bankName={stats?.bank_name}
+                    extractoLabel={extractoLabel}
                     movements={movsForMonth}
                     categories={categories}
                     onRefresh={() => loadMovements(selected)}

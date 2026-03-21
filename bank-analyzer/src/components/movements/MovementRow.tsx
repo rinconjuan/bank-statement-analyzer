@@ -5,13 +5,14 @@ interface MovementRowProps {
   movement: Movement
   categories: Category[]
   onUpdated: () => void
+  showCuota?: boolean
 }
 
 function formatAmount(n: number): string {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
 }
 
-export function MovementRow({ movement, categories, onUpdated }: MovementRowProps) {
+export function MovementRow({ movement, categories, onUpdated, showCuota = false }: MovementRowProps) {
   const [editing, setEditing] = useState(false)
   const [selectedCat, setSelectedCat] = useState<number | null>(movement.category_id)
   const [note, setNote] = useState(movement.note ?? '')
@@ -69,6 +70,19 @@ export function MovementRow({ movement, categories, onUpdated }: MovementRowProp
           {movement.type}
         </span>
       </td>
+      {showCuota && (
+        <td className="px-4 py-2.5 text-right text-xs font-mono">
+          {movement.es_pago_tarjeta ? (
+            <span style={{ color: 'var(--accent-primary)' }}>Pago realizado</span>
+          ) : movement.es_diferido_anterior ? (
+            <span style={{ color: 'var(--text-muted)' }}>Diferido</span>
+          ) : movement.cuota_mes > 0 ? (
+            <span style={{ color: 'var(--accent-green)' }}>{formatAmount(movement.cuota_mes)}</span>
+          ) : (
+            <span style={{ color: 'var(--text-muted)' }}>—</span>
+          )}
+        </td>
+      )}
       <td className="px-4 py-2.5">
         {editing ? (
           <div className="flex items-center gap-2">

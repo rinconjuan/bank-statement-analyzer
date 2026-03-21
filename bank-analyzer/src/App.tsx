@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
 import { SummaryCards } from './components/dashboard/SummaryCards'
+import { CreditCardSummary } from './components/dashboard/CreditCardSummary'
 import { CategoryChart } from './components/dashboard/CategoryChart'
 import { MonthlyChart } from './components/dashboard/MonthlyChart'
 import { CalendarMonthView } from './components/dashboard/CalendarMonthView'
@@ -88,12 +89,16 @@ export default function App() {
             </div>
           ) : (
             <div className="space-y-6 max-w-7xl">
-              <SummaryCards
-                summary={summary}
-                statementType={activeMonth?.statement_type}
-                minPayment={activeMonth?.min_payment}
-                totalPayment={activeMonth?.total_payment}
-              />
+              {activeMonth?.statement_type === 'tarjeta_credito' ? (
+                <CreditCardSummary month={activeMonth} />
+              ) : (
+                <SummaryCards
+                  summary={summary}
+                  statementType={activeMonth?.statement_type}
+                  minPayment={activeMonth?.min_payment}
+                  totalPayment={activeMonth?.total_payment}
+                />
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <CategoryChart summary={summary} />
                 <MonthlyChart months={months} />
@@ -104,6 +109,7 @@ export default function App() {
                 onFiltersChange={setFilters}
                 onRefresh={refreshMovements}
                 loading={movementsLoading}
+                statementType={activeMonth?.statement_type}
               />
             </div>
           )}

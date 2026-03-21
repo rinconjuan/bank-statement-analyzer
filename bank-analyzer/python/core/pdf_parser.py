@@ -18,6 +18,10 @@ BANK_PATTERNS = {
 # These lines follow a USD transaction and should not reset pending_cop.
 _FALABELLA_SKIP_PREFIXES = ('TT..CC..', '1-Tarjeta', 'Página')
 
+# Description fragment that identifies an insurance charge — these are never
+# marked as deferred (es_diferido_anterior) even when cuota_mes == 0.
+_FALABELLA_SEGURO_DESC = 'cobro seguro vida deudor'
+
 
 def detect_bank(text: str) -> str:
     """Detect bank from PDF text using keywords"""
@@ -158,35 +162,72 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
 # ---------------------------------------------------------------------------
 
 def _extract_falabella_metadata(text: str) -> dict:
-    """Extract the total and minimum payment amounts from a Falabella credit card statement.
+    """Extract the total and minimum payment amounts, dates, and credit limits from a
+    Falabella credit card statement.
 
     The PDF uses doubled characters for text (e.g. 'TTuu' = 'Tu') but normal
     single digits for numbers.  Each line is decoded individually so that
     keywords can be recognised while the numeric part is read from the original
     line (decoding would corrupt repeated digits like '33' → '3').
     """
-    metadata: dict = {'min_payment': None, 'total_payment': None}
+    metadata: dict = {
+        'min_payment': None, 'total_payment': None,
+        'fecha_corte': None, 'fecha_limite_pago': None,
+        'cupo_total': None, 'cupo_disponible': None,
+    }
+
+    _ES_MONTHS_SHORT = {
+        'ene': 1, 'feb': 2, 'mar': 3, 'abr': 4, 'may': 5, 'jun': 6,
+        'jul': 7, 'ago': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dic': 12,
+    }
+
+    def _parse_es_date(s: str) -> 'str | None':
+        """Convert 'DD mmm YYYY' (in decoded string) to 'DD/MM/YYYY'."""
+        m = re.search(r'(\d{1,2})\s+([a-záéíóú]{3,})\s+(\d{4})', s)
+        if not m:
+            return None
+        day_s, month_s, year_s = m.group(1), m.group(2)[:3].lower(), m.group(3)
+        month_num = _ES_MONTHS_SHORT.get(month_s)
+        if not month_num:
+            return None
+        return f"{int(day_s):02d}/{month_num:02d}/{year_s}"
+
     for raw_line in text.split('\n'):
         raw_line = raw_line.strip()
-        if '$' not in raw_line:
+        if not raw_line:
             continue
         decoded = re.sub(r'(.)\1', r'\1', raw_line).lower()
-        amt_m = re.search(r'\$\s*([\d.,]+)', raw_line)
-        if not amt_m:
-            continue
-        try:
-            amount = parse_amount(amt_m.group(1))
-        except Exception:
-            continue
-        if amount <= 0:
-            continue
 
-        if 'pago total' in decoded and metadata['total_payment'] is None:
-            metadata['total_payment'] = amount
-        elif ('pago' in decoded
-              and ('minimo' in decoded or 'mínimo' in decoded)
-              and metadata['min_payment'] is None):
-            metadata['min_payment'] = amount
+        # ── Amounts (lines that contain '$') ──────────────────────────────────
+        if '$' in raw_line:
+            amt_m = re.search(r'\$\s*([\d.,]+)', raw_line)
+            if amt_m:
+                try:
+                    amount = parse_amount(amt_m.group(1))
+                except Exception:
+                    amount = 0
+
+                if amount > 0:
+                    if 'pago total' in decoded and metadata['total_payment'] is None:
+                        metadata['total_payment'] = amount
+                    elif ('pago' in decoded
+                          and ('minimo' in decoded or 'mínimo' in decoded)
+                          and metadata['min_payment'] is None):
+                        metadata['min_payment'] = amount
+                    elif 'cupo total' in decoded and metadata['cupo_total'] is None:
+                        metadata['cupo_total'] = amount
+                    elif ('disponible' in decoded) and metadata['cupo_disponible'] is None:
+                        metadata['cupo_disponible'] = amount
+
+        # ── Date fields ────────────────────────────────────────────────────────
+        if ('antes del' in decoded or 'paga antes' in decoded) and metadata['fecha_limite_pago'] is None:
+            fecha = _parse_es_date(decoded)
+            if fecha:
+                metadata['fecha_limite_pago'] = fecha
+        elif ('corte' in decoded) and metadata['fecha_corte'] is None:
+            fecha = _parse_es_date(decoded)
+            if fecha:
+                metadata['fecha_corte'] = fecha
 
     return metadata
 
@@ -199,24 +240,29 @@ def _parse_falabella(file_path: str, full_text: str, password: str | None = None
     """Parse a Banco Falabella CMR credit-card statement.
 
     Uses two complementary strategies and merges the results:
-    1. Line-by-line text regex – covers the vast majority of transactions.
-    2. Table extraction – catches entries whose description spans multiple
-       lines in the PDF (e.g. 'ABONO COMPRA MASTERCARD INTERN').
-    """
-    text_movs = _parse_falabella_text(full_text)
-    table_movs = _parse_falabella_tables(file_path, password=password)
+    1. Table extraction – primary source; captures cuota_mes, valor_pendiente,
+       num_cuotas, and all credit-card flags per entry.
+    2. Line-by-line text regex – fallback for entries not captured by tables
+       (e.g. entries whose description spans multiple lines in the table).
 
-    # Merge: text results first, then add table entries not already present
+    Table data takes priority when both sources capture the same entry
+    (matched by date + rounded amount).
+    """
+    table_movs = _parse_falabella_tables(file_path, password=password)
+    text_movs = _parse_falabella_text(full_text)
+
+    # Build seen set from table results (primary)
     seen: set = set()
     merged: list[dict] = []
 
-    for m in text_movs:
+    for m in table_movs:
         key = (m['date'], round(m['amount'], 2))
         if key not in seen:
             seen.add(key)
             merged.append(m)
 
-    for m in table_movs:
+    # Add text-only entries not already captured by tables
+    for m in text_movs:
         key = (m['date'], round(m['amount'], 2))
         if key not in seen:
             seen.add(key)
@@ -292,13 +338,42 @@ def _parse_falabella_text(text: str) -> list[dict]:
 
         # Credit-card convention: positive = purchase (Egreso), negative = payment/credit (Ingreso)
         mov_type = 'Ingreso' if amount < 0 else 'Egreso'
-        movements.append({'date': date, 'description': description, 'amount': abs(amount), 'type': mov_type})
+        es_pago = 'pago tarjeta' in description.lower() or 'pago tc' in description.lower()
+        movements.append({
+            'date': date,
+            'description': description,
+            'amount': abs(amount),
+            'type': mov_type,
+            'cuota_mes': 0.0,
+            'valor_pendiente': 0.0,
+            'num_cuotas_actual': None,
+            'num_cuotas_total': None,
+            'aplica_este_extracto': es_pago,  # text parser can't determine from cuota_mes
+            'es_pago_tarjeta': es_pago,
+            'es_diferido_anterior': False,
+        })
 
     return movements
 
 
+def _parse_cuotas(s: str) -> tuple:
+    """Parse '2 de 24' → (2, 24). Returns (None, None) if not parseable."""
+    m = re.search(r'(\d+)\s+de\s+(\d+)', s.lower())
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    m2 = re.match(r'^(\d+)$', s.strip())
+    if m2:
+        return int(m2.group(1)), None
+    return None, None
+
+
 def _parse_falabella_tables(file_path: str, password: str | None = None) -> list[dict]:
     """Extract movements from the pdfplumber tables of a Falabella statement.
+
+    Table columns (Falabella credit card):
+      0: Fecha  1: Detalle  2: Titular/Adicional  3: Valor movimiento
+      4: Num cuotas  5: Tasa efectiva anual  6: Cuota a pagar este mes
+      7: Valor pendiente
 
     Covers entries whose description is split across lines in the raw text
     (e.g. 'ABONO COMPRA MASTERCARD INTERN').
@@ -327,9 +402,9 @@ def _parse_falabella_tables(file_path: str, password: str | None = None) -> list
                     if not description:
                         continue
 
-                    # Column 3: transaction amount (first line when multi-line, e.g. USD entries)
-                    # Column 6: cuota a pagar – used for payments/credits with '--$$...' values
+                    # Column 3: transaction amount (first line for USD/COP multi-line entries)
                     col3 = (cells[3].split('\n')[0].strip()) if len(cells) > 3 else ''
+                    # Column 6: cuota a pagar — also used as amount fallback for payments
                     col6 = cells[6].strip() if len(cells) > 6 else ''
                     amount_str = col3 or col6
 
@@ -344,8 +419,51 @@ def _parse_falabella_tables(file_path: str, password: str | None = None) -> list
                     if amount == 0:
                         continue
 
+                    # Extract cuota_mes (col 6) — separate from amount
+                    cuota_mes = 0.0
+                    if len(cells) > 6 and cells[6].strip():
+                        try:
+                            cuota_mes = abs(parse_amount(cells[6].strip()))
+                        except Exception:
+                            cuota_mes = 0.0
+
+                    # Extract valor_pendiente (col 7)
+                    valor_pendiente = 0.0
+                    if len(cells) > 7 and cells[7].strip():
+                        try:
+                            valor_pendiente = abs(parse_amount(cells[7].strip()))
+                        except Exception:
+                            valor_pendiente = 0.0
+
+                    # Extract num_cuotas (col 4) — format "X de Y"
+                    num_cuotas_actual: Optional[int] = None
+                    num_cuotas_total: Optional[int] = None
+                    if len(cells) > 4 and cells[4].strip():
+                        raw_cuotas = cells[4].strip()
+                        if _is_doubled_text(raw_cuotas):
+                            raw_cuotas = re.sub(r'(.)\1', r'\1', raw_cuotas)
+                        num_cuotas_actual, num_cuotas_total = _parse_cuotas(raw_cuotas)
+
                     mov_type = 'Ingreso' if amount < 0 else 'Egreso'
-                    movements.append({'date': date, 'description': description, 'amount': abs(amount), 'type': mov_type})
+                    es_pago = 'pago tarjeta' in description.lower() or 'pago tc' in description.lower()
+                    aplica = cuota_mes > 0 or es_pago
+                    diferido = (not aplica) and (cuota_mes == 0) and (
+                        _FALABELLA_SEGURO_DESC not in description.lower()
+                    )
+
+                    movements.append({
+                        'date': date,
+                        'description': description,
+                        'amount': abs(amount),
+                        'type': mov_type,
+                        'cuota_mes': cuota_mes,
+                        'valor_pendiente': valor_pendiente,
+                        'num_cuotas_actual': num_cuotas_actual,
+                        'num_cuotas_total': num_cuotas_total,
+                        'aplica_este_extracto': aplica,
+                        'es_pago_tarjeta': es_pago,
+                        'es_diferido_anterior': diferido,
+                    })
 
     return movements
 

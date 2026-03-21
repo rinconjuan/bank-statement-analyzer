@@ -53,6 +53,12 @@ class Month(Base):
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     min_payment = Column(Float, nullable=True)
     total_payment = Column(Float, nullable=True)
+    # Credit card extended fields
+    fecha_corte = Column(String, nullable=True)
+    fecha_limite_pago = Column(String, nullable=True)
+    cupo_total = Column(Float, default=0.0)
+    cupo_disponible = Column(Float, default=0.0)
+    consumos_periodo = Column(Float, default=0.0)
 
     __table_args__ = ()
 
@@ -71,6 +77,14 @@ class Movement(Base):
     category_id = Column(Integer, ForeignKey('categories.id', ondelete='SET NULL'), nullable=True)
     note = Column(Text, nullable=True)
     applies_this_month = Column(Integer, nullable=True)  # NULL=unknown, 1=yes, 0=no
+    # Credit card extended fields
+    cuota_mes = Column(Float, default=0.0)
+    valor_pendiente = Column(Float, default=0.0)
+    num_cuotas_actual = Column(Integer, nullable=True)
+    num_cuotas_total = Column(Integer, nullable=True)
+    aplica_este_extracto = Column(Integer, default=1)   # 1=aplica, 0=no aplica
+    es_pago_tarjeta = Column(Integer, default=0)        # 1=payment movement, 0=other
+    es_diferido_anterior = Column(Integer, default=0)   # 1=deferred/carry-over, 0=other
 
     __table_args__ = (CheckConstraint("type IN ('Ingreso', 'Egreso')", name='ck_movement_type'),)
 
@@ -244,6 +258,36 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()  # column already exists – ignore
+
+        # Add credit-card extended columns to movements
+        for col_ddl in (
+            "ALTER TABLE movements ADD COLUMN cuota_mes FLOAT DEFAULT 0.0",
+            "ALTER TABLE movements ADD COLUMN valor_pendiente FLOAT DEFAULT 0.0",
+            "ALTER TABLE movements ADD COLUMN num_cuotas_actual INTEGER",
+            "ALTER TABLE movements ADD COLUMN num_cuotas_total INTEGER",
+            "ALTER TABLE movements ADD COLUMN aplica_este_extracto INTEGER DEFAULT 1",
+            "ALTER TABLE movements ADD COLUMN es_pago_tarjeta INTEGER DEFAULT 0",
+            "ALTER TABLE movements ADD COLUMN es_diferido_anterior INTEGER DEFAULT 0",
+        ):
+            try:
+                db.execute(text(col_ddl))
+                db.commit()
+            except Exception:
+                db.rollback()
+
+        # Add credit-card extended columns to months
+        for col_ddl in (
+            "ALTER TABLE months ADD COLUMN fecha_corte VARCHAR",
+            "ALTER TABLE months ADD COLUMN fecha_limite_pago VARCHAR",
+            "ALTER TABLE months ADD COLUMN cupo_total FLOAT DEFAULT 0.0",
+            "ALTER TABLE months ADD COLUMN cupo_disponible FLOAT DEFAULT 0.0",
+            "ALTER TABLE months ADD COLUMN consumos_periodo FLOAT DEFAULT 0.0",
+        ):
+            try:
+                db.execute(text(col_ddl))
+                db.commit()
+            except Exception:
+                db.rollback()
 
         # Migration: drop unique constraint (year, month) so that multiple statements
         # for the same month (e.g. savings account + credit card) can coexist.

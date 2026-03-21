@@ -64,6 +64,14 @@ class Movement(MovementBase):
     applies_this_month: bool | None = None
     statement_type: str = 'cuenta_ahorro'
     category: Category | None = None
+    # Credit card extended fields
+    cuota_mes: float = 0.0
+    valor_pendiente: float = 0.0
+    num_cuotas_actual: int | None = None
+    num_cuotas_total: int | None = None
+    aplica_este_extracto: bool = True
+    es_pago_tarjeta: bool = False
+    es_diferido_anterior: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -91,6 +99,11 @@ class MonthWithStats(Month):
     movements_count: int
     min_payment: float | None = None
     total_payment: float | None = None
+    fecha_corte: str | None = None
+    fecha_limite_pago: str | None = None
+    cupo_total: float = 0.0
+    cupo_disponible: float = 0.0
+    consumos_periodo: float = 0.0
 
 
 class UploadResponse(BaseModel):
@@ -124,3 +137,23 @@ class MovementsSummary(BaseModel):
     total_expenses: float
     balance: float
     expenses_by_month: list[MonthlyExpenseBreakdown] = []
+
+
+class CreditSummaryMonth(BaseModel):
+    mes: str           # 'Enero 2026'
+    total_consumos: float
+    total_cuota: float
+    aplica_extracto: bool
+    movimientos_count: int
+
+
+class CreditSummary(BaseModel):
+    pago_realizado: dict | None = None   # {'amount': float, 'date': str}
+    pago_minimo: float = 0.0
+    pago_total: float = 0.0
+    fecha_limite: str | None = None
+    cupo_total: float = 0.0
+    cupo_disponible: float = 0.0
+    consumos_por_mes: list[CreditSummaryMonth] = []
+    total_consumos_nuevos: float = 0.0
+    total_diferidos: float = 0.0
