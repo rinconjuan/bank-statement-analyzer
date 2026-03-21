@@ -14,12 +14,30 @@ function formatK(v: number): string {
 }
 
 export function MonthlyChart({ months }: MonthlyChartProps) {
-  const last6 = [...months].reverse().slice(-6)
-  const data = last6.map((m) => ({
-    name: `${MONTH_NAMES[m.month - 1]} ${String(m.year).slice(2)}`,
-    Ingresos: m.total_income,
-    Egresos: m.total_expenses,
-  }))
+  // Group entries by year+month, summing income and expenses so that two
+  // statements in the same month (e.g. cuenta_ahorro + tarjeta_credito) are
+  // consolidated into a single bar instead of appearing as duplicates.
+  const grouped = months.reduce<Record<string, { year: number; month: number; income: number; expenses: number }>>(
+    (acc, m) => {
+      const key = `${m.year}-${String(m.month).padStart(2, '0')}`
+      if (!acc[key]) {
+        acc[key] = { year: m.year, month: m.month, income: 0, expenses: 0 }
+      }
+      acc[key].income += m.total_income
+      acc[key].expenses += m.total_expenses
+      return acc
+    },
+    {},
+  )
+
+  const data = Object.entries(grouped)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([, v]) => ({
+      name: `${MONTH_NAMES[v.month - 1]} ${String(v.year).slice(2)}`,
+      Ingresos: v.income,
+      Egresos: v.expenses,
+    }))
 
   return (
     <div

@@ -59,6 +59,10 @@ class Month(Base):
     cupo_total = Column(Float, default=0.0)
     cupo_disponible = Column(Float, default=0.0)
     consumos_periodo = Column(Float, default=0.0)
+    # Davivienda balance fields
+    saldo_anterior = Column(Float, nullable=True)
+    nuevo_saldo = Column(Float, nullable=True)
+    saldo_bolsillo = Column(Float, nullable=True)
 
     __table_args__ = ()
 
@@ -282,6 +286,18 @@ def init_db():
             "ALTER TABLE months ADD COLUMN cupo_total FLOAT DEFAULT 0.0",
             "ALTER TABLE months ADD COLUMN cupo_disponible FLOAT DEFAULT 0.0",
             "ALTER TABLE months ADD COLUMN consumos_periodo FLOAT DEFAULT 0.0",
+        ):
+            try:
+                db.execute(text(col_ddl))
+                db.commit()
+            except Exception:
+                db.rollback()
+
+        # Add Davivienda balance columns to months
+        for col_ddl in (
+            "ALTER TABLE months ADD COLUMN saldo_anterior FLOAT",
+            "ALTER TABLE months ADD COLUMN nuevo_saldo FLOAT",
+            "ALTER TABLE months ADD COLUMN saldo_bolsillo FLOAT",
         ):
             try:
                 db.execute(text(col_ddl))

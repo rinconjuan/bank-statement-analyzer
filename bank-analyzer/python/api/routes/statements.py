@@ -91,8 +91,21 @@ async def upload_statement(
             now = datetime.now()
             month_num, year = now.month, now.year
 
-    # Calculate consumos_periodo: sum of cuota_mes for all movements
-    consumos_periodo = sum(m.get('cuota_mes', 0.0) for m in movements_data)
+    # Calculate consumos_periodo using the same rule as the credit-summary endpoint:
+    #   SUM(cuota_mes where cuota_mes > 0) + SUM(amount for fixed-charge lines)
+    consumos_periodo = 0.0
+    for m in movements_data:
+        if m.get('es_pago_tarjeta'):
+            continue
+        if m.get('type') != 'Egreso':
+            continue
+        cuota = m.get('cuota_mes') or 0.0
+        desc_upper = (m.get('description') or '').upper()
+        is_fixed = any(kw in desc_upper for kw in FIXED_CHARGE_KEYWORDS)
+        if is_fixed:
+            consumos_periodo += m.get('amount', 0.0)
+        elif cuota > 0:
+            consumos_periodo += cuota
 
     db_month = Month(
         year=year,
@@ -107,6 +120,9 @@ async def upload_statement(
         cupo_total=pdf_meta.get('cupo_total') or 0.0,
         cupo_disponible=pdf_meta.get('cupo_disponible') or 0.0,
         consumos_periodo=consumos_periodo,
+        saldo_anterior=pdf_meta.get('saldo_anterior'),
+        nuevo_saldo=pdf_meta.get('nuevo_saldo'),
+        saldo_bolsillo=pdf_meta.get('saldo_bolsillo'),
     )
     db.add(db_month)
     db.flush()
@@ -170,6 +186,9 @@ def get_months(db: Session = Depends(get_db)):
             cupo_total=m.cupo_total or 0.0,
             cupo_disponible=m.cupo_disponible or 0.0,
             consumos_periodo=m.consumos_periodo or 0.0,
+            saldo_anterior=m.saldo_anterior,
+            nuevo_saldo=m.nuevo_saldo,
+            saldo_bolsillo=m.saldo_bolsillo,
         ))
     return result
 
