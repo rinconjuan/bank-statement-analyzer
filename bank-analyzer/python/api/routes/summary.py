@@ -30,6 +30,11 @@ _INTERNAL_MOVEMENT_KEYWORDS = INTERNAL_MOVEMENT_KEYWORDS
 
 # Expense classification groups for the QUÉ SALIÓ breakdown.
 # Order matters: first match wins. 'otras_compras' is the fallback.
+#
+# FIX: 'LLAVE OTRA ENTIDAD' was too short and matched both:
+#   - "Transferencia A Llave Otra Entidad Redeban BreB"  (real transfer)
+#   - "Compra A Comercio Llave Otra Entidad Redeban BreB" (card purchase at POS)
+# Using the full phrase 'TRANSFERENCIA A LLAVE OTRA ENTIDAD' prevents the false match.
 _EXPENSE_GROUPS: list[dict] = [
     {
         'key': 'falabella',
@@ -47,7 +52,9 @@ _EXPENSE_GROUPS: list[dict] = [
         'key': 'transferencias',
         'label': 'Transferencias',
         'icon': '🔀',
-        'keywords': ('TRANSFERENCIA A LLAVE', 'LLAVE OTRA ENTIDAD', 'DAVIPLATA', 'TRANSFERENCIA ENVIADA'),
+        # IMPORTANT: use full phrase so "Compra A Comercio Llave Otra Entidad" is NOT matched here.
+        # That description shares "Llave Otra Entidad" but is a POS purchase, not a transfer.
+        'keywords': ('TRANSFERENCIA A LLAVE OTRA ENTIDAD', 'DAVIPLATA', 'TRANSFERENCIA ENVIADA'),
     },
     {
         'key': 'bancarios',
