@@ -239,11 +239,21 @@ export interface RecurringCharge {
   months_seen: number
 }
 
+export interface SavingsTrendPoint {
+  month: string          // 'YYYY-MM'
+  label: string          // 'Enero 2026'
+  nuevo_saldo: number    // closing balance
+  saldo_anterior: number // opening balance
+  saldo_bolsillo: number // pocket savings amount
+  diferencia: number     // nuevo_saldo - saldo_anterior
+}
+
 export interface TrendsReport {
   monthly_totals: MonthlyTotal[]
   category_trends: CategoryTrend[]
   recurring_charges: RecurringCharge[]
   months_analyzed: number
+  savings_trend: SavingsTrendPoint[]
 }
 
 export const fetchTrends = () =>

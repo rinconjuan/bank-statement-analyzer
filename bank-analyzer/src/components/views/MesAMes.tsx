@@ -233,11 +233,11 @@ function BalanceCard({ summary }: BalanceCardProps) {
                   🏦 Saldo Davivienda final
                 </span>
                 <span className="text-xs font-mono font-semibold"
-                      style={{ color: savings_account.nuevo_saldo >= savings_account.saldo_anterior
+                      style={{ color: savings_account.nuevo_saldo >= (savings_account.saldo_anterior ?? 0)
                         ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                   {fmt(savings_account.nuevo_saldo)}
                   {' '}
-                  {savings_account.nuevo_saldo >= savings_account.saldo_anterior ? '📈' : '📉'}
+                  {savings_account.nuevo_saldo >= (savings_account.saldo_anterior ?? 0) ? '📈' : '📉'}
                 </span>
               </div>
             </div>

@@ -212,11 +212,21 @@ class RecurringCharge(BaseModel):
     months_seen: int
 
 
+class SavingsTrendPoint(BaseModel):
+    month: str           # 'YYYY-MM'
+    label: str           # 'Enero 2026'
+    nuevo_saldo: float   # closing balance for the period
+    saldo_anterior: float  # opening balance for the period
+    saldo_bolsillo: float  # pocket savings amount
+    diferencia: float    # nuevo_saldo - saldo_anterior
+
+
 class TrendsReport(BaseModel):
     monthly_totals: list[MonthlyTotal]
     category_trends: list[CategoryTrend]
     recurring_charges: list[RecurringCharge]
     months_analyzed: int
+    savings_trend: list[SavingsTrendPoint] = []
 
 
 # ── Monthly Unified Summary ─────────────────────────────────────────────────

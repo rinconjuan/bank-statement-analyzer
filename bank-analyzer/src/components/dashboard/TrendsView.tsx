@@ -4,6 +4,7 @@ import {
   TrendsReport,
   CategoryTrend,
   RecurringCharge,
+  SavingsTrendPoint,
 } from '../../services/api'
 
 function formatAmount(n: number): string {
@@ -150,6 +151,40 @@ function RecurringRow({ charge }: { charge: RecurringCharge }) {
   )
 }
 
+// ── Savings balance chart ─────────────────────────────────────────────────
+function SavingsBalanceChart({ points }: { points: SavingsTrendPoint[] }) {
+  if (points.length < 1) return null
+  const values = points.map((p) => p.nuevo_saldo)
+  const max = Math.max(...values) || 1
+  const min = Math.min(...values)
+  const range = max - min || 1
+
+  return (
+    <div className="flex items-end gap-2 w-full" style={{ height: 100 }}>
+      {points.map((p) => {
+        const heightPct = Math.max(8, Math.round(((p.nuevo_saldo - min) / range) * 76 + 8))
+        const isGrowth = p.diferencia >= 0
+        return (
+          <div key={p.month} className="flex flex-col items-center flex-1 gap-1 min-w-0">
+            <div
+              className="w-full rounded-t"
+              style={{
+                height: heightPct,
+                background: isGrowth ? 'var(--accent-green)' : 'var(--accent-red)',
+                opacity: 0.8,
+              }}
+              title={`${p.label}: ${formatAmount(p.nuevo_saldo)} (${isGrowth ? '+' : ''}${formatAmount(p.diferencia)})`}
+            />
+            <span className="text-xs truncate w-full text-center" style={{ color: 'var(--text-muted)', fontSize: 10 }}>
+              {p.label.split(' ')[0].substring(0, 3)}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Main TrendsView ───────────────────────────────────────────────────────
 export function TrendsView() {
   const [report, setReport] = useState<TrendsReport | null>(null)
@@ -259,6 +294,95 @@ export function TrendsView() {
           </div>
         </div>
       )}
+
+      {/* ── Row 2b: Savings balance trend ── */}
+      {report.savings_trend.length >= 1 && (() => {
+        const pts = report.savings_trend
+        const lastPt = pts[pts.length - 1]
+        const firstPt = pts[0]
+        const overallDiff = lastPt.nuevo_saldo - firstPt.nuevo_saldo
+        const overallPct = firstPt.nuevo_saldo > 0
+          ? Math.round((overallDiff / firstPt.nuevo_saldo) * 100)
+          : 0
+        const savingsTrend = overallPct > 5 ? 'up' : overallPct < -5 ? 'down' : 'stable'
+        const positiveDiffs = pts.filter((p) => p.diferencia > 0).length
+        const negativeDiffs = pts.filter((p) => p.diferencia < 0).length
+
+        return (
+          <div className="rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  🏦 Tendencia de ahorro
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  Evolución del saldo en cuenta de ahorros
+                </div>
+              </div>
+              <div className="text-right">
+                <div
+                  className="text-sm font-semibold"
+                  style={{ color: savingsTrend === 'up' ? 'var(--accent-green)' : savingsTrend === 'down' ? 'var(--accent-red)' : 'var(--text-muted)' }}
+                >
+                  {savingsTrend === 'up' ? '↑' : savingsTrend === 'down' ? '↓' : '→'}{' '}
+                  {savingsTrend !== 'stable' ? `${Math.abs(overallPct)}%` : 'Estable'}
+                </div>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {pts.length} extracto{pts.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+            </div>
+
+            <SavingsBalanceChart points={pts} />
+
+            {/* Detail legend */}
+            <div className="flex flex-wrap gap-3 mt-3">
+              {pts.map((p) => (
+                <div key={p.month} className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{p.label}</span>{' '}
+                  {formatAmount(p.nuevo_saldo)}
+                  {p.diferencia !== 0 && (
+                    <span style={{ color: p.diferencia >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                      {' '}{p.diferencia >= 0 ? '+' : ''}{formatAmount(p.diferencia)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Quick stats row */}
+            <div className="grid grid-cols-3 gap-3 mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <div>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Saldo actual</div>
+                <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {formatAmount(lastPt.nuevo_saldo)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Meses positivos</div>
+                <div className="text-sm font-semibold" style={{ color: 'var(--accent-green)' }}>
+                  ↑ {positiveDiffs} de {pts.length}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Cambio total</div>
+                <div
+                  className="text-sm font-semibold"
+                  style={{ color: overallDiff >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}
+                >
+                  {overallDiff >= 0 ? '+' : ''}{formatAmount(overallDiff)}
+                </div>
+              </div>
+            </div>
+
+            {negativeDiffs > positiveDiffs && (
+              <div className="mt-3 text-xs px-3 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--accent-red)' }}>
+                ⚠️ El saldo bajó en {negativeDiffs} de los {pts.length} meses analizados.
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* ── Row 3: Category trends ── */}
       {report.category_trends.length > 0 && (
