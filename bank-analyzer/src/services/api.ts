@@ -284,10 +284,20 @@ export interface BalanceSummary {
   balance_change: number
 }
 
+export interface ExpenseBreakdownItem {
+  label: string
+  icon: string
+  amount: number
+  tooltip: string | null
+  count: number
+}
+
 export interface MonthlySummary {
   year: number
   month: number
   month_label: string
+  /** PARCIAL | ACTIVO | CERRADO */
+  month_status: string
   salary: SalaryInfo | null
   other_income: number
   total_income: number
@@ -298,6 +308,11 @@ export interface MonthlySummary {
   has_credit: boolean
   patrimonio_davivienda: number
   patrimonio_neto: number
+  expense_breakdown: ExpenseBreakdownItem[]
+  next_payment_confirmed: boolean
+  next_payment_confirmation_date: string | null
+  next_payment_confirmation_amount: number
+  ahorro_real: number | null
 }
 
 export interface AvailableMonth {

@@ -12,6 +12,7 @@ from models.schemas import (
     RecurringCharge, RecurringOccurrence,
 )
 from core.categorizer import save_user_rule
+from core.constants import INTERNAL_MOVEMENT_KEYWORDS
 
 router = APIRouter()
 
@@ -19,6 +20,16 @@ _MONTH_NAMES_ES = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
+
+
+def _is_bolsillo_movement(description: str) -> bool:
+    """Return True if the movement is an internal Davivienda bolsillo/pocket transfer.
+
+    These should be excluded from all financial summaries to avoid double-counting
+    the same money (the Bolsillo pocket is the same money as the main account).
+    """
+    desc_lower = description.lower()
+    return any(kw in desc_lower for kw in INTERNAL_MOVEMENT_KEYWORDS)
 
 
 def _ym_to_label(ym: str) -> str:
@@ -90,6 +101,11 @@ def get_summary(month_id: Optional[int] = Query(None), db: Session = Depends(get
     if month_id is not None:
         q = q.filter(Movement.month_id == month_id)
     movements = q.all()
+
+    # Exclude internal Davivienda bolsillo/pocket movements from all summary totals.
+    # The Bolsillo is the same money as the main account — including both sides would
+    # inflate both income and expense totals (double-counting).
+    movements = [m for m in movements if not _is_bolsillo_movement(m.description)]
 
     total_income = sum(m.amount for m in movements if m.type == 'Ingreso')
     total_expenses = sum(m.amount for m in movements if m.type == 'Egreso')

@@ -11,7 +11,7 @@ from models.schemas import (
 )
 from core.pdf_parser import parse_pdf, PDFPasswordRequiredError
 from core.categorizer import auto_categorize_movements
-from core.constants import FIXED_CHARGE_KEYWORDS
+from core.constants import FIXED_CHARGE_KEYWORDS, INTERNAL_MOVEMENT_KEYWORDS
 
 router = APIRouter()
 
@@ -166,6 +166,14 @@ def get_months(db: Session = Depends(get_db)):
     result = []
     for m in months:
         movements = db.query(Movement).filter(Movement.month_id == m.id).all()
+        # Exclude internal bolsillo/pocket movements from totals for savings accounts.
+        # Including them would double-count the same money (Bolsillo is part of the same
+        # account balance, not a separate source of income or expense).
+        if m.statement_type != 'tarjeta_credito':
+            movements = [
+                mv for mv in movements
+                if not any(kw in mv.description.lower() for kw in INTERNAL_MOVEMENT_KEYWORDS)
+            ]
         total_income = sum(mv.amount for mv in movements if mv.type == 'Ingreso')
         total_expenses = sum(mv.amount for mv in movements if mv.type == 'Egreso')
         result.append(MonthWithStats(

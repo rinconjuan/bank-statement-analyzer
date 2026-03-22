@@ -3,6 +3,8 @@ import re
 from datetime import datetime
 from typing import Optional
 
+from core.constants import INTERNAL_MOVEMENT_KEYWORDS
+
 
 class PDFPasswordRequiredError(Exception):
     """Raised when a PDF requires a password to open."""
@@ -507,19 +509,8 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
     # Any movement whose description contains one of these strings is skipped
     # because it represents a transfer between the main account balance and the
     # pocket — not a real income or expense.
-    _BOLSILLO_KEYWORDS = (
-        'bolsillo',
-        'transferencia de dinero a bolsillo',
-        'debito automatico al bolsillo',
-        'débito automático al bolsillo',
-        'abono automatico a bolsillo',
-        'abono automático a bolsillo',
-        'traslado rendimientos a bolsillo',
-        'transferencia desde cuenta a bolsillo',
-        'transferencia de bolsillo a cuenta',
-        'abono de bolsillo a cuenta',
-        'abono rendimientos netos desde cuenta',
-    )
+    # Defined in core/constants.py and shared across the whole backend.
+    _BOLSILLO_KEYWORDS = INTERNAL_MOVEMENT_KEYWORDS
 
     # Extract statement year from header (e.g. 'INFORME DEL MES:FEBRERO /2026')
     year_m = re.search(r'INFORME DEL MES[:\s]+\w+\s*/(\d{4})', full_text, re.IGNORECASE)
@@ -564,6 +555,17 @@ def _parse_davivienda(file_path: str, full_text: str, password: str | None = Non
     with pdfplumber.open(file_path, **open_kwargs) as pdf:
         in_bolsillo = False
         for page in pdf.pages:
+            # Strategy 1: skip entire pages that belong to the H.02 Bolsillo section.
+            # This is the strongest guard — if the page header identifies it as H.02
+            # or "EXTRACTO BOLSILLO", none of its tables should be processed.
+            # IMPORTANT: also set in_bolsillo = True so that continuation pages of a
+            # multi-page bolsillo section (which may not repeat the header text) are
+            # also skipped.
+            page_text = page.extract_text() or ''
+            page_text_upper = page_text.upper()
+            if 'H.02' in page_text_upper or 'EXTRACTO BOLSILLO' in page_text_upper:
+                in_bolsillo = True
+                continue
             for table in page.extract_tables():
                 for row in table:
                     cells = [str(c).strip() if c is not None else '' for c in row]
