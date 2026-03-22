@@ -1,4 +1,5 @@
 import { MovementsSummary } from '../../services/api'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 function formatAmount(n: number): string {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
@@ -14,6 +15,7 @@ interface SummaryCardsProps {
 }
 
 export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPayment, totalPayment, saldoAnterior, nuevoSaldo }: SummaryCardsProps) {
+  const { t } = useLanguage()
   const income = summary?.total_income ?? 0
   const expenses = summary?.total_expenses ?? 0
   const balance = summary?.balance ?? 0
@@ -25,30 +27,30 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
 
   const cards = [
     {
-      label: isCreditCard ? 'Pagos/Abonos' : 'Ingresos',
+      label: isCreditCard ? t('cards.payments') : t('cards.income'),
       value: income,
       color: 'var(--accent-green)',
       icon: isCreditCard ? '💳' : '↑',
       bg: 'rgba(34,197,94,0.08)',
-      hint: isCreditCard ? 'Pagos realizados a la tarjeta' : undefined,
+      hint: isCreditCard ? t('cards.paymentsHint') : undefined,
       breakdown: false,
     },
     {
-      label: isCreditCard ? 'Consumos Totales' : 'Egresos',
+      label: isCreditCard ? t('cards.totalCharges') : t('cards.expenses'),
       value: expenses,
       color: 'var(--accent-red)',
       icon: '↓',
       bg: 'rgba(239,68,68,0.08)',
-      hint: isCreditCard ? 'Total de compras del período' : undefined,
+      hint: isCreditCard ? t('cards.chargesHint') : undefined,
       breakdown: isCreditCard && expensesByMonth.length > 1,
     },
     {
-      label: isCreditCard ? 'Saldo Pendiente' : 'Balance',
+      label: isCreditCard ? t('cards.pendingBalance') : t('cards.balance'),
       value: balance,
       color: balance >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
       icon: isCreditCard ? '⚖️' : '≈',
       bg: balance >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
-      hint: isCreditCard ? (balance >= 0 ? 'A favor del titular' : 'Monto por pagar') : undefined,
+      hint: isCreditCard ? (balance >= 0 ? t('cards.inFavor') : t('cards.amountDue')) : undefined,
       breakdown: false,
     },
   ]
@@ -98,14 +100,14 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
               </div>
             )}
             {/* Saldo anterior / final context — only for savings account Balance card */}
-            {card.label === 'Balance' && !isCreditCard && saldoAnterior != null && nuevoSaldo != null && (
+            {card.label === t('cards.balance') && !isCreditCard && saldoAnterior != null && nuevoSaldo != null && (
               <div className="mt-3 pt-2 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
                 <div className="flex justify-between text-xs">
-                  <span style={{ color: 'var(--text-muted)' }}>Saldo anterior</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{t('cards.prevBalance')}</span>
                   <span style={{ color: 'var(--text-secondary)' }}>{formatAmount(saldoAnterior)}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span style={{ color: 'var(--text-muted)' }}>Saldo final</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{t('cards.finalBalance')}</span>
                   <span style={{ color: nuevoSaldo >= (saldoAnterior ?? 0) ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                     {formatAmount(nuevoSaldo)}
                     {' '}{nuevoSaldo >= (saldoAnterior ?? 0) ? '📈' : '📉'}
@@ -132,7 +134,7 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
                 💰
               </div>
               <div>
-                <div className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Pago total del período</div>
+                <div className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('cards.totalPaymentLabel')}</div>
                 <div className="text-xl font-semibold tracking-tight" style={{ color: 'var(--accent-red)' }}>
                   {formatAmount(totalPayment)}
                 </div>
@@ -151,7 +153,7 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
                 📋
               </div>
               <div>
-                <div className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Pago mínimo</div>
+                <div className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('cards.minPaymentLabel')}</div>
                 <div className="text-xl font-semibold tracking-tight" style={{ color: '#ca8a04' }}>
                   {formatAmount(minPayment)}
                 </div>

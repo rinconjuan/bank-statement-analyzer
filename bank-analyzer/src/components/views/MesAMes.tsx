@@ -5,15 +5,20 @@ import {
 } from '../../services/api'
 import { MovementRow } from '../movements/MovementRow'
 import { HelpModal } from '../help/HelpModal'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 const MONTH_NAMES_ES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
+const MONTH_NAMES_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
 
-function calendarMonthLabel(ym: string): string {
+function calendarMonthLabel(ym: string, monthNames: string[]): string {
   const [year, month] = ym.split('-')
-  return `${MONTH_NAMES_ES[parseInt(month) - 1] ?? month} ${year}`
+  return `${monthNames[parseInt(month) - 1] ?? month} ${year}`
 }
 
 function fmt(n: number): string {
@@ -33,13 +38,15 @@ function fmtDateShort(d: string | null | undefined): string {
 
 const SALARY_DESC_MAX_LEN = 40
 
-const STATEMENT_TYPE_META: Record<string, { label: string; icon: string }> = {
-  tarjeta_credito: { label: 'Tarjeta de Crédito', icon: '💳' },
-  cuenta_ahorro:   { label: 'Cuenta de Ahorros',  icon: '🏦' },
+const STATEMENT_TYPE_META: Record<string, { labelKey: string; icon: string }> = {
+  tarjeta_credito: { labelKey: 'mesAMes.stmtTypeCredit', icon: '💳' },
+  cuenta_ahorro:   { labelKey: 'mesAMes.stmtTypeSavings', icon: '🏦' },
 }
 
-function statementMeta(type: string) {
-  return STATEMENT_TYPE_META[type] ?? { label: type, icon: '📄' }
+function statementMeta(type: string, t: (k: string) => string) {
+  const meta = STATEMENT_TYPE_META[type]
+  if (!meta) return { label: type, icon: '📄' }
+  return { label: t(meta.labelKey), icon: meta.icon }
 }
 
 // Keywords identifying internal bolsillo/pocket movements — mirrors backend _INTERNAL_MOVEMENT_KEYWORDS.
@@ -57,20 +64,21 @@ function isInternalMovement(description: string): boolean {
 
 // ── Month status badge ────────────────────────────────────────────────────────
 
-const STATUS_META: Record<string, { label: string; bg: string; color: string; dot: string }> = {
-  CERRADO:  { label: 'Cerrado',  bg: 'rgba(34,197,94,0.15)',  color: '#16a34a', dot: '✅' },
-  ACTIVO:   { label: 'Activo',   bg: 'rgba(234,179,8,0.15)',  color: '#ca8a04', dot: '🔄' },
-  PARCIAL:  { label: 'Parcial',  bg: 'rgba(148,163,184,0.15)', color: '#64748b', dot: '⏳' },
+const STATUS_META: Record<string, { bg: string; color: string; dot: string; key: string }> = {
+  CERRADO:  { bg: 'rgba(34,197,94,0.15)',   color: '#16a34a', dot: '✅', key: 'mesAMes.statusClosed'  },
+  ACTIVO:   { bg: 'rgba(234,179,8,0.15)',   color: '#ca8a04', dot: '🔄', key: 'mesAMes.statusActive'  },
+  PARCIAL:  { bg: 'rgba(148,163,184,0.15)', color: '#64748b', dot: '⏳', key: 'mesAMes.statusPartial' },
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useLanguage()
   const meta = STATUS_META[status] ?? STATUS_META['PARCIAL']
   return (
     <span
       className="text-xs px-2 py-0.5 rounded-full font-medium"
       style={{ background: meta.bg, color: meta.color }}
     >
-      {meta.dot} {meta.label}
+      {meta.dot} {t(meta.key)}
     </span>
   )
 }
@@ -83,6 +91,7 @@ interface BalanceCardProps {
 }
 
 function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
+  const { t } = useLanguage()
   const {
     salary, other_income, total_income, credit_card, savings_account, balance,
     has_savings, has_credit, patrimonio_davivienda, patrimonio_neto,
@@ -106,7 +115,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="text-base">📊</span>
-          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Balance del mes</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('mesAMes.balanceTitle')}</span>
         </div>
         <StatusBadge status={month_status} />
       </div>
@@ -115,14 +124,14 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
       {has_savings && (
         <>
           <div className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            QUÉ ENTRÓ
+            {t('mesAMes.whatIn')}
           </div>
 
           {salary && (
             <div className="flex items-start justify-between py-1.5">
               <div>
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  💰 Salario
+                  {t('mesAMes.salary')}
                 </span>
                 <div className="text-xs mt-0.5 pl-5" style={{ color: 'var(--text-muted)' }}>
                   {salary.description.substring(0, SALARY_DESC_MAX_LEN).trim()}, {fmtDateShort(salary.date)}
@@ -136,7 +145,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
 
           {other_income > 0 && (
             <div className="flex items-center justify-between py-1">
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Otros ingresos</span>
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('mesAMes.otherIncome')}</span>
               <span className="text-sm font-mono font-semibold" style={{ color: 'var(--accent-green)' }}>
                 + {fmt(other_income)}
               </span>
@@ -148,7 +157,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
             className="flex items-center justify-between py-1 mt-1"
             style={{ borderTop: '1px solid var(--border)' }}
           >
-            <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Total ingresos</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.totalIncome')}</span>
             <span className="text-xs font-mono font-semibold" style={{ color: 'var(--accent-green)' }}>
               + {fmt(total_income)}
             </span>
@@ -160,7 +169,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
       {has_savings && expense_breakdown.length > 0 && (
         <>
           <div className="text-xs font-semibold uppercase tracking-widest mt-4 mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            QUÉ SALIÓ
+            {t('mesAMes.whatOut')}
           </div>
 
           {expense_breakdown.map((item, i) => (
@@ -170,7 +179,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
                   {item.icon} {item.label}
                   {item.count > 1 && (
                     <span className="ml-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      ({item.count} pagos)
+                      ({t('mesAMes.nPayments', { n: item.count })})
                     </span>
                   )}
                 </span>
@@ -192,7 +201,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
               className="flex items-center justify-between py-1 mt-1"
               style={{ borderTop: '1px solid var(--border)' }}
             >
-              <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Total salidas</span>
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.totalOut')}</span>
               <span className="text-xs font-mono font-semibold" style={{ color: 'var(--accent-red)' }}>
                 - {fmt(balance.card_payment + balance.other_expenses)}
               </span>
@@ -206,11 +215,11 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
         <>
           <div className="my-3" style={{ borderTop: '1px solid var(--border)' }} />
           <div className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            RESULTADO
+            {t('mesAMes.result')}
           </div>
 
           <div className="flex items-center justify-between py-1">
-            <span className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>Diferencia del mes</span>
+            <span className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>{t('mesAMes.monthDiff')}</span>
             <span
               className="text-sm font-mono font-bold"
               style={{ color: balance.difference >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}
@@ -226,7 +235,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
               {savings_account.saldo_anterior > 0 && (
                 <div className="flex items-center justify-between py-0.5">
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    🏦 Saldo Davivienda anterior
+                    {t('mesAMes.prevSaldo')}
                   </span>
                   <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
                     {fmt(savings_account.saldo_anterior)}
@@ -235,7 +244,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
               )}
               <div className="flex items-center justify-between py-0.5">
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  🏦 Saldo Davivienda final
+                  {t('mesAMes.finalSaldo')}
                 </span>
                 <span className="text-xs font-mono font-semibold"
                       style={{ color: savings_account.nuevo_saldo >= (savings_account.saldo_anterior ?? 0)
@@ -255,7 +264,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
                 <div className="flex items-start justify-between py-1">
                   <div>
                     <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      ⏳ Próximo pago Falabella
+                      {t('mesAMes.nextPayment', { bank: creditBankName })}
                     </span>
                     {credit_card.next_payment_date && (
                       <div className="text-xs mt-0.5 pl-5" style={{ color: 'var(--text-muted)' }}>
@@ -281,7 +290,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
                 <div className="flex items-center justify-between py-1">
                   <div>
                     <span className="text-sm" style={{ color: 'var(--accent-green)' }}>
-                      ✅ Pago Falabella confirmado
+                      {t('mesAMes.confirmedPayment', { bank: creditBankName })}
                     </span>
                     {next_payment_confirmation_date && (
                       <div className="text-xs mt-0.5 pl-5" style={{ color: 'var(--text-muted)' }}>
@@ -298,7 +307,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
                     className="flex items-center justify-between py-1 mt-1"
                     style={{ borderTop: '1px solid var(--border)' }}
                   >
-                    <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Ahorro real del mes</span>
+                    <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{t('mesAMes.realSavings')}</span>
                     <span
                       className="text-sm font-mono font-bold"
                       style={{ color: ahorro_real >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}
@@ -328,7 +337,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
           <div className="mt-4 pt-4" style={{ borderTop: '2px solid var(--border)' }}>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-base">🏛️</span>
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Patrimonio</span>
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('mesAMes.patrimony')}</span>
             </div>
 
             {/* Davivienda — total then breakdown */}
@@ -341,13 +350,13 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
             {savings_account.saldo_bolsillo > 0 && (
               <>
                 <div className="flex items-center justify-between py-0.5 pl-4">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>💰 En bolsillo (ahorro)</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.inBolsillo')}</span>
                   <span className="text-xs font-mono" style={{ color: 'var(--accent-green)' }}>
                     {fmt(savings_account.saldo_bolsillo)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-0.5 pl-4">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>💵 Disponible en cuenta</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.availableInAccount')}</span>
                   <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
                     {fmt(Math.max(0, savings_account.nuevo_saldo - savings_account.saldo_bolsillo))}
                   </span>
@@ -356,7 +365,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
             )}
             {savings_account.ahorro_mes > 0 && (
               <div className="flex items-center justify-between py-0.5 pl-4">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>📈 Ahorrado este mes</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.savedThisMonth')}</span>
                 <span className="text-xs font-mono" style={{ color: 'var(--accent-green)' }}>
                   +{fmt(savings_account.ahorro_mes)}
                 </span>
@@ -375,7 +384,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
 
             {/* Patrimonio neto */}
             <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Patrimonio neto</span>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{t('mesAMes.netPatrimony')}</span>
               <span
                 className="text-sm font-mono font-bold"
                 style={{ color: patrimonio_neto >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}
@@ -404,7 +413,8 @@ interface StatementSectionProps {
 function StatementSection({
   statementType, bankName, extractoLabel, movements, categories, onRefresh,
 }: StatementSectionProps) {
-  const meta = statementMeta(statementType)
+  const { t } = useLanguage()
+  const meta = statementMeta(statementType, t)
   // Exclude internal bolsillo movements from header totals
   const realMovements = movements.filter(m => !isInternalMovement(m.description))
   const income = realMovements.filter(m => m.type === 'Ingreso').reduce((s, m) => s + m.amount, 0)
@@ -427,11 +437,11 @@ function StatementSection({
           )}
           {extractoLabel && (
             <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(79,127,255,0.12)', color: 'var(--accent-primary)', border: '1px solid rgba(79,127,255,0.3)' }}>
-              Extracto {extractoLabel}
+            {t('mesAMes.extracto')} {extractoLabel}
             </span>
           )}
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>
-            {movements.length} mov.
+            {movements.length} {t('mesAMes.movs')}
           </span>
         </div>
         <div className="flex items-center gap-4 text-sm flex-shrink-0">
@@ -445,15 +455,15 @@ function StatementSection({
           <table className="w-full text-left">
             <thead>
               <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}>
-                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Fecha</th>
-                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Descripción</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Monto</th>
-                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Tipo</th>
+                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colDate')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colDesc')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colAmount')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colType')}</th>
                 {isCreditCard && (
-                  <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Cuota este mes</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colInstallment')}</th>
                 )}
-                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Categoría</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-center" style={{ color: 'var(--text-muted)' }}>Aplica</th>
+                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colCategory')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-center" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colApplies')}</th>
               </tr>
             </thead>
             <tbody>
@@ -489,8 +499,9 @@ export function MesAMes({ categories }: MesAMesProps) {
   const [loadingMovements, setLoadingMovements] = useState(false)
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  // Cache of month statuses per calendar month key (e.g. '2026-02')
   const [monthStatuses, setMonthStatuses] = useState<Record<string, string>>({})
+  const { lang, t } = useLanguage()
+  const MONTH_NAMES = lang === 'en' ? MONTH_NAMES_EN : MONTH_NAMES_ES
 
   // Load available calendar months and all statement months (for bank name lookup)
   useEffect(() => {
@@ -561,8 +572,8 @@ export function MesAMes({ categories }: MesAMesProps) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <div className="text-4xl">📅</div>
-        <p style={{ color: 'var(--text-secondary)' }}>No hay movimientos cargados aún.</p>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Carga un extracto para ver el historial mes a mes.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>{lang === 'es' ? 'No hay movimientos cargados aún.' : 'No movements loaded yet.'}</p>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Carga un extracto para ver el historial mes a mes.' : 'Upload a statement to see the month-by-month history.'}</p>
       </div>
     )
   }
@@ -579,7 +590,7 @@ export function MesAMes({ categories }: MesAMesProps) {
           className="px-4 py-3 text-xs font-semibold uppercase tracking-widest"
           style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}
         >
-          Meses calendario
+          {t('mesAMes.calendarMonths')}
         </div>
         <div className="flex flex-col overflow-y-auto" style={{ maxHeight: 480 }}>
           {calMonths.map((ym) => {
@@ -597,7 +608,7 @@ export function MesAMes({ categories }: MesAMesProps) {
                 }}
               >
                 <div className="flex items-center justify-between gap-1">
-                  <span>📅 {calendarMonthLabel(ym)}</span>
+                  <span>📅 {calendarMonthLabel(ym, MONTH_NAMES)}</span>
                   {statusDot && (
                     <span className="text-xs flex-shrink-0" title={status}>{statusDot}</span>
                   )}
@@ -615,7 +626,7 @@ export function MesAMes({ categories }: MesAMesProps) {
             {/* Month title + Help button */}
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-xl font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)' }}>
-                {calendarMonthLabel(selected)}
+                {calendarMonthLabel(selected, MONTH_NAMES)}
               </h2>
               <button
                 onClick={() => setShowHelp(true)}
@@ -623,7 +634,7 @@ export function MesAMes({ categories }: MesAMesProps) {
                 style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
                 title="Abrir sección de ayuda"
               >
-                <span>❓</span> Ayuda
+                <span>❓</span> {t('btn.help')}
               </button>
             </div>
 
@@ -633,7 +644,7 @@ export function MesAMes({ categories }: MesAMesProps) {
                 className="rounded-xl flex items-center justify-center py-8 mb-6"
                 style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
               >
-                Cargando balance…
+                {t('mesAMes.loadingBalance')}
               </div>
             ) : summary ? (
               <BalanceCard summary={summary} userHasCreditCards={userHasCreditCards} />
@@ -645,21 +656,21 @@ export function MesAMes({ categories }: MesAMesProps) {
                 className="rounded-xl flex items-center justify-center py-12"
                 style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
               >
-                Cargando movimientos…
+                {t('mesAMes.loadingMovements')}
               </div>
             ) : movements.length === 0 && !loadingSummary && summary === null ? (
               <div
                 className="rounded-xl flex items-center justify-center py-12"
                 style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
               >
-                No hay extractos para {calendarMonthLabel(selected)}
+                {lang === 'es' ? `No hay extractos para ${calendarMonthLabel(selected, MONTH_NAMES)}` : `No statements for ${calendarMonthLabel(selected, MONTH_NAMES)}`}
               </div>
             ) : movements.length === 0 && !loadingMovements ? (
               <div
                 className="rounded-xl flex items-center justify-center py-8"
                 style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
               >
-                Sin movimientos para {calendarMonthLabel(selected)}
+                {lang === 'es' ? `Sin movimientos para ${calendarMonthLabel(selected, MONTH_NAMES)}` : `No movements for ${calendarMonthLabel(selected, MONTH_NAMES)}`}
               </div>
             ) : (
               <>
@@ -682,7 +693,7 @@ export function MesAMes({ categories }: MesAMesProps) {
                   >
                     <span>⚠️</span>
                     <span>
-                      Tienes movimientos de {calendarMonthLabel(selected)} en{' '}
+                      Tienes movimientos de {calendarMonthLabel(selected, MONTH_NAMES)} en{' '}
                       <strong>{creditMonthIds.length} extractos diferentes</strong>. Mostrando todos consolidados.
                     </span>
                   </div>

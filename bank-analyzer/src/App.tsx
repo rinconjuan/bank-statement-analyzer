@@ -14,6 +14,7 @@ import { HelpModal } from './components/help/HelpModal'
 import { useMonths } from './hooks/useMonths'
 import { useMovements } from './hooks/useMovements'
 import { useCategories } from './hooks/useCategories'
+import { useLanguage } from './contexts/LanguageContext'
 import { UploadResponse } from './services/api'
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
   const [showHelp, setShowHelp] = useState(false)
   const [activeView, setActiveView] = useState<'dashboard' | 'mes_a_mes' | 'tendencias' | 'settings'>('dashboard')
   const [filters, setFilters] = useState<{ category_id?: number; type?: string; search?: string }>({})
+  const { t } = useLanguage()
 
   const { months, refresh: refreshMonths, remove: removeMonth } = useMonths()
   const { categories, create: createCategory, update: updateCategory, remove: removeCategory } = useCategories()
@@ -43,10 +45,10 @@ export default function App() {
   }, [refreshMonths])
 
   const handleDeleteMonth = useCallback(async (id: number) => {
-    if (!window.confirm('¿Eliminar este mes y todos sus movimientos?')) return
+    if (!window.confirm(t('sidebar.confirmDelete'))) return
     await removeMonth(id)
     if (activeMonthId === id) setActiveMonthId(null)
-  }, [removeMonth, activeMonthId])
+  }, [removeMonth, activeMonthId, t])
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
@@ -79,17 +81,17 @@ export default function App() {
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <div className="text-6xl">🏦</div>
               <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-                Bienvenido a Bank Analyzer
+                {t('welcome.title')}
               </h2>
               <p style={{ color: 'var(--text-secondary)' }}>
-                Carga tu extracto bancario para comenzar
+                {t('welcome.subtitle')}
               </p>
               <button
                 onClick={() => setShowUpload(true)}
                 className="px-6 py-3 rounded-xl font-medium text-sm hover:opacity-90 transition-all"
                 style={{ background: 'var(--accent-primary)', color: '#fff' }}
               >
-                + Cargar extracto PDF
+                {t('welcome.button')}
               </button>
             </div>
           ) : (
@@ -103,7 +105,7 @@ export default function App() {
                   style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
                   title="Abrir sección de ayuda"
                 >
-                  <span>❓</span> Ayuda
+                  <span>❓</span> {t('btn.help')}
                 </button>
               </div>
               {activeMonth?.statement_type === 'tarjeta_credito' ? (

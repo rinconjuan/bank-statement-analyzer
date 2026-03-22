@@ -1,6 +1,5 @@
 import { MonthWithStats } from '../../services/api'
-
-const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+import { useLanguage } from '../../contexts/LanguageContext'
 
 const STATEMENT_TYPE_ICON: Record<string, string> = {
   cuenta_ahorro: '🏦',
@@ -18,6 +17,11 @@ interface SidebarProps {
 }
 
 export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, onDeleteMonth, activeView, onViewChange }: SidebarProps) {
+  const { lang, t } = useLanguage()
+  const MONTH_NAMES = lang === 'en'
+    ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    : ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
   return (
     <aside
       className="flex flex-col h-full w-64 flex-shrink-0"
@@ -29,7 +33,7 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
           <span className="text-2xl">🏦</span>
           <div>
             <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Bank Analyzer</div>
-            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Análisis financiero</div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('sidebar.tagline')}</div>
           </div>
         </div>
       </div>
@@ -44,7 +48,7 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
             color: activeView === 'dashboard' ? '#fff' : 'var(--text-secondary)',
           }}
         >
-          <span>📊</span> Dashboard
+          <span>📊</span> {t('nav.dashboard')}
         </button>
         <button
           onClick={() => onViewChange('mes_a_mes')}
@@ -54,7 +58,7 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
             color: activeView === 'mes_a_mes' ? '#fff' : 'var(--text-secondary)',
           }}
         >
-          <span>📅</span> Mes a Mes
+          <span>📅</span> {t('nav.mesAMes')}
         </button>
         <button
           onClick={() => onViewChange('tendencias')}
@@ -64,7 +68,7 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
             color: activeView === 'tendencias' ? '#fff' : 'var(--text-secondary)',
           }}
         >
-          <span>📈</span> Tendencias
+          <span>📈</span> {t('nav.tendencias')}
         </button>
         <button
           onClick={() => onViewChange('settings')}
@@ -74,20 +78,20 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
             color: activeView === 'settings' ? '#fff' : 'var(--text-secondary)',
           }}
         >
-          <span>⚙️</span> Categorías
+          <span>⚙️</span> {t('nav.categorias')}
         </button>
       </nav>
 
       {/* Months header */}
       <div className="px-5 py-3 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-          Meses
+          {t('sidebar.months')}
         </span>
         <button
           onClick={onUploadClick}
           className="w-6 h-6 rounded flex items-center justify-center text-sm transition-all hover:opacity-80"
           style={{ background: 'var(--accent-primary)', color: '#fff' }}
-          title="Cargar nuevo extracto"
+          title={t('sidebar.uploadTooltip')}
         >
           +
         </button>
@@ -99,7 +103,7 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
           <div className="text-center py-8 px-4">
             <div className="text-3xl mb-2">📄</div>
             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Carga tu primer extracto bancario
+              {t('sidebar.noStatements')}
             </div>
           </div>
         ) : (
@@ -123,14 +127,14 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
                     {STATEMENT_TYPE_ICON[m.statement_type] ?? '🏦'} {MONTH_NAMES[m.month - 1]} {m.year}
                   </div>
                   <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                    {m.bank_name ? `${m.bank_name} · ` : ''}{m.movements_count} movs
+                    {m.bank_name ? `${m.bank_name} · ` : ''}{m.movements_count} {t('mesAMes.movs')}
                   </div>
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDeleteMonth(m.id) }}
                   className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-xs transition-all hover:bg-red-500/20"
                   style={{ color: 'var(--accent-red)' }}
-                  title="Eliminar mes"
+                  title={t('sidebar.confirmDelete')}
                 >
                   ×
                 </button>
