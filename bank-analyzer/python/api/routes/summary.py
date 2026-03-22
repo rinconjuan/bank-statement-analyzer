@@ -171,11 +171,32 @@ def _determine_month_status(
     has_savings: bool, has_credit: bool,
     db: Session,
 ) -> str:
-    """Return PARCIAL, ACTIVO, or CERRADO for the given month."""
-    if not has_savings or not has_credit:
+    """Return PARCIAL, ACTIVO, or CERRADO for the given month.
+
+    Rules:
+    - No savings → always PARCIAL (savings is the source of truth)
+    - Has savings, no credit card uploaded for this month:
+        - If the user has NEVER uploaded any credit card → CERRADO (debit-only user)
+        - If the user HAS credit cards in other months → PARCIAL (missing this month's card)
+    - Has both → ACTIVO unless next month's savings is already uploaded → CERRADO
+    """
+    if not has_savings:
         return 'PARCIAL'
 
-    # CERRADO if next month's Davivienda extracto is already available
+    if not has_credit:
+        # Check if this user has ever uploaded any credit card statement
+        any_credit = db.query(Month).filter(
+            Month.statement_type == 'tarjeta_credito'
+        ).first()
+
+        if any_credit is None:
+            # Pure debit user — savings alone is enough to close the month
+            return 'CERRADO'
+        else:
+            # User has credit cards in other months but not this one → incomplete
+            return 'PARCIAL'
+
+    # Has both savings and credit — original logic
     next_year, next_month_num = _next_month(year, month)
     next_savings = db.query(Month).filter(
         Month.year == next_year,
@@ -275,6 +296,12 @@ def get_monthly_summary(
         group_meta['otras_compras'] = {
             'key': 'otras_compras', 'label': 'Otras compras', 'icon': '🛒',
         }
+        # Use the credit card's actual bank name for the payment label when available
+        credit_bank_label = (
+            f'Pago {credit_month.bank_name.title()}'
+            if credit_month and credit_month.bank_name
+            else 'Pago Falabella'
+        )
         for g_key in [g['key'] for g in _EXPENSE_GROUPS] + ['otras_compras']:
             totals = group_totals.get(g_key)
             if not totals or totals['amount'] <= 0:
@@ -286,7 +313,7 @@ def get_monthly_summary(
                 prev_month_label = _MONTH_NAMES_ES[prev_month_num - 1]
                 tooltip = f'Cubre consumos del extracto {prev_month_label}'
             expense_breakdown.append(ExpenseBreakdownItem(
-                label=meta['label'],
+                label=credit_bank_label if g_key == 'falabella' else meta['label'],
                 icon=meta['icon'],
                 amount=totals['amount'],
                 tooltip=tooltip,
@@ -432,6 +459,8 @@ def get_monthly_summary(
         next_payment_confirmation_date=next_payment_confirmation_date,
         next_payment_confirmation_amount=next_payment_confirmation_amount,
         ahorro_real=ahorro_real,
+        savings_bank_name=savings_month.bank_name if savings_month else None,
+        credit_bank_name=credit_month.bank_name if credit_month else None,
     )
 
 

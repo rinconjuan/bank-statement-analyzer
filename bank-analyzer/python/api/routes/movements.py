@@ -9,7 +9,7 @@ from models.schemas import (
     Movement as MovementSchema, MovementUpdate,
     MovementsSummary, CategorySummary, MonthlyExpenseBreakdown,
     TrendsReport, MonthlyTotal, CategoryTrend, CategoryTrendPoint,
-    RecurringCharge, RecurringOccurrence,
+    RecurringCharge, RecurringOccurrence, SavingsTrendPoint,
 )
 from core.categorizer import save_user_rule
 from core.constants import INTERNAL_MOVEMENT_KEYWORDS
@@ -329,9 +329,28 @@ def get_trends(db: Session = Depends(get_db)):
     recurring_charges.sort(key=lambda r: (r.months_seen, r.avg_amount), reverse=True)
     recurring_charges = recurring_charges[:20]
 
+    # ── 4. Savings balance trend ───────────────────────────────────────────
+    # Use nuevo_saldo from savings account months ordered chronologically.
+    savings_months = [m for m in all_months if m.statement_type == 'cuenta_ahorro' and m.nuevo_saldo]
+    savings_trend: list[SavingsTrendPoint] = []
+    for m in savings_months:
+        key = _month_key(m)
+        saldo_ant = m.saldo_anterior or 0.0
+        nuevo = m.nuevo_saldo or 0.0
+        bolsillo = m.saldo_bolsillo or 0.0
+        savings_trend.append(SavingsTrendPoint(
+            month=key,
+            label=_ym_to_label(key),
+            nuevo_saldo=nuevo,
+            saldo_anterior=saldo_ant,
+            saldo_bolsillo=bolsillo,
+            diferencia=round(nuevo - saldo_ant, 2),
+        ))
+
     return TrendsReport(
         monthly_totals=monthly_totals,
         category_trends=category_trends,
         recurring_charges=recurring_charges,
         months_analyzed=len(all_months),
+        savings_trend=savings_trend,
     )

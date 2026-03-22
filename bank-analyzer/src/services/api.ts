@@ -72,6 +72,10 @@ export interface MonthWithStats {
   cupo_total: number
   cupo_disponible: number
   consumos_periodo: number
+  // Davivienda balance fields
+  saldo_anterior: number | null
+  nuevo_saldo: number | null
+  saldo_bolsillo: number | null
 }
 
 export interface UploadResponse {
@@ -235,11 +239,21 @@ export interface RecurringCharge {
   months_seen: number
 }
 
+export interface SavingsTrendPoint {
+  month: string          // 'YYYY-MM'
+  label: string          // 'Enero 2026'
+  nuevo_saldo: number    // closing balance
+  saldo_anterior: number // opening balance
+  saldo_bolsillo: number // pocket savings amount
+  diferencia: number     // nuevo_saldo - saldo_anterior
+}
+
 export interface TrendsReport {
   monthly_totals: MonthlyTotal[]
   category_trends: CategoryTrend[]
   recurring_charges: RecurringCharge[]
   months_analyzed: number
+  savings_trend: SavingsTrendPoint[]
 }
 
 export const fetchTrends = () =>
@@ -313,6 +327,8 @@ export interface MonthlySummary {
   next_payment_confirmation_date: string | null
   next_payment_confirmation_amount: number
   ahorro_real: number | null
+  savings_bank_name: string | null
+  credit_bank_name: string | null
 }
 
 export interface AvailableMonth {
