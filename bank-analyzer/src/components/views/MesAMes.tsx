@@ -214,6 +214,35 @@ function BalanceCard({ summary }: BalanceCardProps) {
             </span>
           </div>
 
+          {/* Saldo Davivienda anterior / final — contexto del balance */}
+          {savings_account && savings_account.nuevo_saldo > 0 && (
+            <div className="mt-3 pt-2 flex flex-col gap-1"
+                 style={{ borderTop: '1px dashed var(--border)' }}>
+              {savings_account.saldo_anterior > 0 && (
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    🏦 Saldo Davivienda anterior
+                  </span>
+                  <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                    {fmt(savings_account.saldo_anterior)}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between py-0.5">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  🏦 Saldo Davivienda final
+                </span>
+                <span className="text-xs font-mono font-semibold"
+                      style={{ color: savings_account.nuevo_saldo >= savings_account.saldo_anterior
+                        ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                  {fmt(savings_account.nuevo_saldo)}
+                  {' '}
+                  {savings_account.nuevo_saldo >= savings_account.saldo_anterior ? '📈' : '📉'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Next Falabella payment (ACTIVO/PARCIAL with credit) */}
           {has_credit && credit_card && credit_card.next_payment_total > 0 && !next_payment_confirmed && (
             <>

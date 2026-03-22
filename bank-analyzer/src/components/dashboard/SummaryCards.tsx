@@ -9,9 +9,11 @@ interface SummaryCardsProps {
   statementType?: string
   minPayment?: number | null
   totalPayment?: number | null
+  saldoAnterior?: number | null
+  nuevoSaldo?: number | null
 }
 
-export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPayment, totalPayment }: SummaryCardsProps) {
+export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPayment, totalPayment, saldoAnterior, nuevoSaldo }: SummaryCardsProps) {
   const income = summary?.total_income ?? 0
   const expenses = summary?.total_expenses ?? 0
   const balance = summary?.balance ?? 0
@@ -93,6 +95,22 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+            {/* Saldo anterior / final context — only for savings account Balance card */}
+            {card.label === 'Balance' && !isCreditCard && saldoAnterior != null && nuevoSaldo != null && (
+              <div className="mt-3 pt-2 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
+                <div className="flex justify-between text-xs">
+                  <span style={{ color: 'var(--text-muted)' }}>Saldo anterior</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{formatAmount(saldoAnterior)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span style={{ color: 'var(--text-muted)' }}>Saldo final</span>
+                  <span style={{ color: nuevoSaldo >= saldoAnterior ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                    {formatAmount(nuevoSaldo)}
+                    {' '}{'●'}
+                  </span>
+                </div>
               </div>
             )}
           </div>

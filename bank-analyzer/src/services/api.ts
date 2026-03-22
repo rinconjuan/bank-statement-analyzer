@@ -72,6 +72,10 @@ export interface MonthWithStats {
   cupo_total: number
   cupo_disponible: number
   consumos_periodo: number
+  // Davivienda balance fields
+  saldo_anterior: number | null
+  nuevo_saldo: number | null
+  saldo_bolsillo: number | null
 }
 
 export interface UploadResponse {

@@ -100,6 +100,8 @@ export default function App() {
                   statementType={activeMonth?.statement_type}
                   minPayment={activeMonth?.min_payment}
                   totalPayment={activeMonth?.total_payment}
+                  saldoAnterior={activeMonth?.saldo_anterior}
+                  nuevoSaldo={activeMonth?.nuevo_saldo}
                 />
               )}
               <div className="grid grid-cols-2 gap-4">
