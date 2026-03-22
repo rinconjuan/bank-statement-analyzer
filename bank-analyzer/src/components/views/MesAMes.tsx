@@ -93,6 +93,9 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
 
   if (!has_savings && !has_credit) return null
 
+  const savingsBankName = summary.savings_bank_name ?? 'Cuenta de ahorros'
+  const creditBankName = summary.credit_bank_name ?? 'Tarjeta de crédito'
+
   const hasPatrimonio = savings_account != null && (savings_account.nuevo_saldo > 0 || savings_account.saldo_bolsillo > 0)
   const deudaFalabella = patrimonio_davivienda - patrimonio_neto
 
@@ -314,8 +317,8 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
       {(!has_savings || (!has_credit && userHasCreditCards)) && (
         <div className="text-xs mt-3 pt-3" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
           {!has_savings
-            ? 'ℹ️ Sin extracto Davivienda para este mes. Carga el PDF para ver el resumen completo.'
-            : 'ℹ️ Sin extracto Falabella para este mes. Carga el PDF para ver el resumen completo.'}
+            ? `ℹ️ Sin extracto ${savingsBankName} para este mes. Carga el PDF para ver el resumen completo.`
+            : `ℹ️ Sin extracto ${creditBankName} para este mes. Carga el PDF para ver el resumen completo.`}
         </div>
       )}
 
@@ -330,7 +333,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
 
             {/* Davivienda — total then breakdown */}
             <div className="flex items-center justify-between py-0.5">
-              <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>🏦 Davivienda</span>
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>🏦 {savingsBankName}</span>
               <span className="text-xs font-mono font-semibold" style={{ color: 'var(--text-secondary)' }}>
                 {fmt(savings_account.nuevo_saldo)}
               </span>
@@ -363,7 +366,7 @@ function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
             {/* Falabella debt */}
             {deudaFalabella > 0 && (
               <div className="flex items-center justify-between py-0.5 mt-1">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>💳 Deuda Falabella</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>💳 Deuda {creditBankName}</span>
                 <span className="text-xs font-mono" style={{ color: 'var(--accent-red)' }}>
                   -{fmt(deudaFalabella)}
                 </span>

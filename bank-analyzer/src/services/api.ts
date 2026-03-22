@@ -327,6 +327,8 @@ export interface MonthlySummary {
   next_payment_confirmation_date: string | null
   next_payment_confirmation_amount: number
   ahorro_real: number | null
+  savings_bank_name: string | null
+  credit_bank_name: string | null
 }
 
 export interface AvailableMonth {

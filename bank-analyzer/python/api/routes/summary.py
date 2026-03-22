@@ -296,6 +296,12 @@ def get_monthly_summary(
         group_meta['otras_compras'] = {
             'key': 'otras_compras', 'label': 'Otras compras', 'icon': '🛒',
         }
+        # Use the credit card's actual bank name for the payment label when available
+        credit_bank_label = (
+            f'Pago {credit_month.bank_name.title()}'
+            if credit_month and credit_month.bank_name
+            else 'Pago Falabella'
+        )
         for g_key in [g['key'] for g in _EXPENSE_GROUPS] + ['otras_compras']:
             totals = group_totals.get(g_key)
             if not totals or totals['amount'] <= 0:
@@ -307,7 +313,7 @@ def get_monthly_summary(
                 prev_month_label = _MONTH_NAMES_ES[prev_month_num - 1]
                 tooltip = f'Cubre consumos del extracto {prev_month_label}'
             expense_breakdown.append(ExpenseBreakdownItem(
-                label=meta['label'],
+                label=credit_bank_label if g_key == 'falabella' else meta['label'],
                 icon=meta['icon'],
                 amount=totals['amount'],
                 tooltip=tooltip,
@@ -453,6 +459,8 @@ def get_monthly_summary(
         next_payment_confirmation_date=next_payment_confirmation_date,
         next_payment_confirmation_amount=next_payment_confirmation_amount,
         ahorro_real=ahorro_real,
+        savings_bank_name=savings_month.bank_name if savings_month else None,
+        credit_bank_name=credit_month.bank_name if credit_month else None,
     )
 
 

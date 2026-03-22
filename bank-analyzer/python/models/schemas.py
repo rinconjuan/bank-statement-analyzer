@@ -304,3 +304,6 @@ class MonthlySummary(BaseModel):
     next_payment_confirmation_amount: float = 0.0
     # Ahorro real = diferencia - confirmed next Falabella payment (only for CERRADO)
     ahorro_real: float | None = None
+    # Bank names from the uploaded statements (used by the frontend for dynamic labels)
+    savings_bank_name: str | None = None
+    credit_bank_name: str | None = None
