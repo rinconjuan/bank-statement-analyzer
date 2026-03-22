@@ -171,11 +171,32 @@ def _determine_month_status(
     has_savings: bool, has_credit: bool,
     db: Session,
 ) -> str:
-    """Return PARCIAL, ACTIVO, or CERRADO for the given month."""
-    if not has_savings or not has_credit:
+    """Return PARCIAL, ACTIVO, or CERRADO for the given month.
+
+    Rules:
+    - No savings → always PARCIAL (savings is the source of truth)
+    - Has savings, no credit card uploaded for this month:
+        - If the user has NEVER uploaded any credit card → CERRADO (debit-only user)
+        - If the user HAS credit cards in other months → PARCIAL (missing this month's card)
+    - Has both → ACTIVO unless next month's savings is already uploaded → CERRADO
+    """
+    if not has_savings:
         return 'PARCIAL'
 
-    # CERRADO if next month's Davivienda extracto is already available
+    if not has_credit:
+        # Check if this user has ever uploaded any credit card statement
+        any_credit = db.query(Month).filter(
+            Month.statement_type == 'tarjeta_credito'
+        ).first()
+
+        if any_credit is None:
+            # Pure debit user — savings alone is enough to close the month
+            return 'CERRADO'
+        else:
+            # User has credit cards in other months but not this one → incomplete
+            return 'PARCIAL'
+
+    # Has both savings and credit — original logic
     next_year, next_month_num = _next_month(year, month)
     next_savings = db.query(Month).filter(
         Month.year == next_year,

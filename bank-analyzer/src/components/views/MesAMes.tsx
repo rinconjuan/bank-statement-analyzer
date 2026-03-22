@@ -79,9 +79,10 @@ function StatusBadge({ status }: { status: string }) {
 
 interface BalanceCardProps {
   summary: MonthlySummary
+  userHasCreditCards: boolean
 }
 
-function BalanceCard({ summary }: BalanceCardProps) {
+function BalanceCard({ summary, userHasCreditCards }: BalanceCardProps) {
   const {
     salary, other_income, total_income, credit_card, savings_account, balance,
     has_savings, has_credit, patrimonio_davivienda, patrimonio_neto,
@@ -310,7 +311,7 @@ function BalanceCard({ summary }: BalanceCardProps) {
       )}
 
       {/* Partial data notice */}
-      {(!has_savings || !has_credit) && (
+      {(!has_savings || (!has_credit && userHasCreditCards)) && (
         <div className="text-xs mt-3 pt-3" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
           {!has_savings
             ? 'ℹ️ Sin extracto Davivienda para este mes. Carga el PDF para ver el resumen completo.'
@@ -533,6 +534,9 @@ export function MesAMes({ categories }: MesAMesProps) {
   // Build lookup map: month_id → MonthWithStats (for bank name + statement type)
   const monthIdToStats = new Map(allMonths.map(m => [m.id, m]))
 
+  // True if the user has ever uploaded at least one credit card statement
+  const userHasCreditCards = allMonths.some(m => m.statement_type === 'tarjeta_credito')
+
   // Group and order: tarjeta_credito first, then cuenta_ahorro
   const TYPE_ORDER = ['tarjeta_credito', 'cuenta_ahorro']
   const uniqueMonthIds = [...new Set(movements.map(m => m.month_id))]
@@ -629,7 +633,7 @@ export function MesAMes({ categories }: MesAMesProps) {
                 Cargando balance…
               </div>
             ) : summary ? (
-              <BalanceCard summary={summary} />
+              <BalanceCard summary={summary} userHasCreditCards={userHasCreditCards} />
             ) : null}
 
             {/* ── MOVIMIENTOS section ── */}

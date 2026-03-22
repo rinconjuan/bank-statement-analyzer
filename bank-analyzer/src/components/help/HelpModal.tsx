@@ -177,9 +177,9 @@ function MesAMesHelp() {
       <Section title="Estados del mes">
         <div className="flex flex-col gap-2 mb-3">
           {[
-            { dot: '✅', label: 'Cerrado', desc: 'El mes ya terminó y tiene extractos de ahorro y de tarjeta de crédito cargados. El balance es definitivo.', bg: 'rgba(34,197,94,0.1)', color: '#16a34a' },
-            { dot: '🔄', label: 'Activo', desc: 'El mes tiene extracto de ahorro pero aún falta el extracto de tarjeta de crédito, o el mes todavía está en curso.', bg: 'rgba(234,179,8,0.1)', color: '#ca8a04' },
-            { dot: '⏳', label: 'Parcial', desc: 'Solo hay un tipo de extracto cargado para este mes.', bg: 'rgba(148,163,184,0.1)', color: '#64748b' },
+            { dot: '✅', label: 'Cerrado', desc: 'El balance es definitivo. Dos casos: (a) tienes ambos extractos (ahorros + tarjeta) y ya cargaste el mes siguiente, o (b) solo usas débito y el extracto de ahorros está disponible.', bg: 'rgba(34,197,94,0.1)', color: '#16a34a' },
+            { dot: '🔄', label: 'Activo', desc: 'Tienes los extractos de ahorros y tarjeta para este mes pero aún no está disponible el extracto del mes siguiente. El balance puede variar.', bg: 'rgba(234,179,8,0.1)', color: '#ca8a04' },
+            { dot: '⏳', label: 'Parcial', desc: 'Falta al menos un extracto. Puede ser: (a) solo tienes tarjeta pero no el extracto de ahorros, o (b) ya has cargado tarjetas en otros meses pero a este mes le falta la de Falabella.', bg: 'rgba(148,163,184,0.1)', color: '#64748b' },
           ].map((s) => (
             <div key={s.label} className="flex items-start gap-3 rounded-lg px-3 py-2.5"
               style={{ background: s.bg }}>
@@ -191,6 +191,9 @@ function MesAMesHelp() {
             </div>
           ))}
         </div>
+        <Callout>
+          💡 <strong>¿Solo usas cuenta de débito?</strong> Si nunca has cargado una tarjeta de crédito, tus meses con extracto de ahorros se marcarán directamente como ✅ <strong>Cerrado</strong> — no es necesario subir ningún extracto adicional. El aviso "Sin extracto Falabella" solo aparece si ya tienes tarjeta de crédito cargada en algún otro mes.
+        </Callout>
       </Section>
 
       <Divider />
@@ -289,7 +292,7 @@ export function HelpModal({ initialTab = 'dashboard', onClose }: HelpModalProps)
           background: 'var(--bg-secondary)',
           border: '1px solid var(--border)',
           width: '100%',
-          maxWidth: 580,
+          maxWidth: 760,
           maxHeight: '85vh',
           margin: '0 1rem',
         }}

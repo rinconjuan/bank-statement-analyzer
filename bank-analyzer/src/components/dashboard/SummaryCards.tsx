@@ -108,7 +108,7 @@ export function SummaryCards({ summary, statementType = 'cuenta_ahorro', minPaym
                   <span style={{ color: 'var(--text-muted)' }}>Saldo final</span>
                   <span style={{ color: nuevoSaldo >= (saldoAnterior ?? 0) ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                     {formatAmount(nuevoSaldo)}
-                    {' '}{'●'}
+                    {' '}{nuevoSaldo >= (saldoAnterior ?? 0) ? '📈' : '📉'}
                   </span>
                 </div>
               </div>
