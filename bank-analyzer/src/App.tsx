@@ -10,6 +10,7 @@ import { MesAMes } from './components/views/MesAMes'
 import { MovementsTable } from './components/movements/MovementsTable'
 import { UploadZone } from './components/upload/UploadZone'
 import { CategoryEditor } from './components/settings/CategoryEditor'
+import { HelpModal } from './components/help/HelpModal'
 import { useMonths } from './hooks/useMonths'
 import { useMovements } from './hooks/useMovements'
 import { useCategories } from './hooks/useCategories'
@@ -18,6 +19,7 @@ import { UploadResponse } from './services/api'
 export default function App() {
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null)
   const [showUpload, setShowUpload] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [activeView, setActiveView] = useState<'dashboard' | 'mes_a_mes' | 'tendencias' | 'settings'>('dashboard')
   const [filters, setFilters] = useState<{ category_id?: number; type?: string; search?: string }>({})
 
@@ -92,6 +94,18 @@ export default function App() {
             </div>
           ) : (
             <div className="space-y-6 max-w-7xl">
+              {/* Dashboard section header with Help button */}
+              <div className="flex items-center justify-between">
+                <div />
+                <button
+                  onClick={() => setShowHelp(true)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                  style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                  title="Abrir sección de ayuda"
+                >
+                  <span>❓</span> Ayuda
+                </button>
+              </div>
               {activeMonth?.statement_type === 'tarjeta_credito' ? (
                 <CreditCardSummary month={activeMonth} />
               ) : (
@@ -123,6 +137,10 @@ export default function App() {
 
       {showUpload && (
         <UploadZone onUploaded={handleUploaded} onCancel={() => setShowUpload(false)} />
+      )}
+
+      {showHelp && (
+        <HelpModal initialTab="dashboard" onClose={() => setShowHelp(false)} />
       )}
     </div>
   )

@@ -4,6 +4,7 @@ import {
   Movement, Category, MonthWithStats, MonthlySummary,
 } from '../../services/api'
 import { MovementRow } from '../movements/MovementRow'
+import { HelpModal } from '../help/HelpModal'
 
 const MONTH_NAMES_ES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -215,7 +216,7 @@ function BalanceCard({ summary }: BalanceCardProps) {
           </div>
 
           {/* Saldo Davivienda anterior / final — contexto del balance */}
-          {savings_account && savings_account.nuevo_saldo > 0 && (
+          {savings_account && savings_account.nuevo_saldo != null && (
             <div className="mt-3 pt-2 flex flex-col gap-1"
                  style={{ borderTop: '1px dashed var(--border)' }}>
               {savings_account.saldo_anterior > 0 && (
@@ -483,6 +484,7 @@ export function MesAMes({ categories }: MesAMesProps) {
   const [summary, setSummary] = useState<MonthlySummary | null>(null)
   const [loadingMovements, setLoadingMovements] = useState(false)
   const [loadingSummary, setLoadingSummary] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   // Cache of month statuses per calendar month key (e.g. '2026-02')
   const [monthStatuses, setMonthStatuses] = useState<Record<string, string>>({})
 
@@ -559,6 +561,7 @@ export function MesAMes({ categories }: MesAMesProps) {
   }
 
   return (
+    <>
     <div className="flex gap-5 items-start max-w-7xl">
       {/* ── Month selector sidebar ── */}
       <div
@@ -602,10 +605,20 @@ export function MesAMes({ categories }: MesAMesProps) {
       <div className="flex-1 min-w-0">
         {selected && (
           <>
-            {/* Month title */}
-            <h2 className="text-xl font-bold uppercase tracking-wide mb-5" style={{ color: 'var(--text-primary)' }}>
-              {calendarMonthLabel(selected)}
-            </h2>
+            {/* Month title + Help button */}
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-xl font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)' }}>
+                {calendarMonthLabel(selected)}
+              </h2>
+              <button
+                onClick={() => setShowHelp(true)}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                title="Abrir sección de ayuda"
+              >
+                <span>❓</span> Ayuda
+              </button>
+            </div>
 
             {/* ── BALANCE section ── */}
             {loadingSummary ? (
@@ -693,5 +706,7 @@ export function MesAMes({ categories }: MesAMesProps) {
         )}
       </div>
     </div>
+    {showHelp && <HelpModal initialTab="mes_a_mes" onClose={() => setShowHelp(false)} />}
+    </>
   )
 }
