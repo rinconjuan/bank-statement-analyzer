@@ -11,6 +11,14 @@ win:
   target:
     - target: nsis
     - target: portable
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Bank Analyzer"
+  deleteAppDataOnUninstall: false
 extraResources:
   - from: python-dist/
     to: python/
