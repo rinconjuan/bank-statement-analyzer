@@ -55,7 +55,9 @@ async function createWindow(): Promise<void> {
   let port: number
 
   try {
-    port = await pythonBridge.start()
+    // Pass userData so the DB is stored in a persistent location that survives
+    // app updates and reinstalls (e.g. %APPDATA%/Bank Analyzer/ on Windows).
+    port = await pythonBridge.start(app.getPath('userData'))
     await waitForHealth(port)
     console.log(`Python backend ready on port ${port}`)
   } catch (err) {
@@ -108,5 +110,11 @@ app.on('activate', () => {
 })
 
 app.on('before-quit', () => {
+  pythonBridge?.stop()
+})
+
+// Extra safety net: ensure the backend is stopped even when the OS terminates
+// the app directly (e.g. via the NSIS installer during an update).
+app.on('will-quit', () => {
   pythonBridge?.stop()
 })

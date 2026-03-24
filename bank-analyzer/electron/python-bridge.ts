@@ -2,6 +2,7 @@ import { spawn, ChildProcess, execSync } from 'child_process'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import treeKill from 'tree-kill'
 
 const PORT_FILE = path.join(os.tmpdir(), 'bank_analyzer_port.json')
 const isDev = process.env.NODE_ENV === 'development' || !require('electron').app.isPackaged
@@ -20,23 +21,39 @@ function findPython(): string {
 export class PythonBridge {
   private process: ChildProcess | null = null
 
-  async start(): Promise<number> {
+  /**
+   * Start the Python backend.
+   * @param userDataPath  Electron userData directory (app.getPath('userData')).
+   *                      When provided the SQLite database is stored there so it
+   *                      survives app updates and reinstalls.
+   */
+  async start(userDataPath?: string): Promise<number> {
     // Clean up old port file
     try { fs.unlinkSync(PORT_FILE) } catch (_) {}
 
     const pythonPath = isDev
-  ? findPython()
-  : path.join(process.resourcesPath, 'python', 'bank-analyzer-backend.exe')
+      ? findPython()
+      : path.join(process.resourcesPath, 'python', 'bank-analyzer-backend.exe')
 
-  const scriptPath = isDev
-    ? path.join(__dirname, '../python/main.py')
-    : '' // No arguments needed, the .exe is standalone
+    const scriptPath = isDev
+      ? path.join(__dirname, '../python/main.py')
+      : '' // No arguments needed, the .exe is standalone
 
-  const args = isDev ? [scriptPath] : [] // Empty args for .exe in production
+    const args = isDev ? [scriptPath] : [] // Empty args for .exe in production
+
+    // Resolve the database path: prefer the persistent userData directory so
+    // the DB survives app updates / reinstalls.
+    let dbPath: string | undefined
+    if (userDataPath) {
+      fs.mkdirSync(userDataPath, { recursive: true })
+      dbPath = path.join(userDataPath, 'bank_analyzer.db')
+    }
+
     const env = {
       ...process.env,
       PORT_FILE,
       PYTHONUNBUFFERED: '1',
+      ...(dbPath ? { DB_PATH: dbPath } : {}),
     }
 
     this.process = isDev
@@ -72,8 +89,10 @@ export class PythonBridge {
   }
 
   stop(): void {
-    if (this.process) {
-      this.process.kill()
+    if (this.process && this.process.pid) {
+      // Kill the entire process tree (cross-platform) so no orphaned backend
+      // processes remain after the app closes.
+      treeKill(this.process.pid, 'SIGTERM')
       this.process = null
     }
     try { fs.unlinkSync(PORT_FILE) } catch (_) {}
