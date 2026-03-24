@@ -35,6 +35,16 @@ export class PythonBridge {
       ? findPython()
       : path.join(process.resourcesPath, 'python', 'bank-analyzer-backend.exe')
 
+    // In production, verify the bundled executable exists before trying to
+    // spawn it.  A missing file would otherwise surface as an unhelpful
+    // "ENOENT" crash in the main process.
+    if (!isDev && !fs.existsSync(pythonPath)) {
+      throw new Error(
+        `Backend executable not found.\n\nExpected path:\n  ${pythonPath}\n\n` +
+        `Please reinstall the application.`
+      )
+    }
+
     const scriptPath = isDev
       ? path.join(__dirname, '../python/main.py')
       : '' // No arguments needed, the .exe is standalone
@@ -92,7 +102,9 @@ export class PythonBridge {
     if (this.process && this.process.pid) {
       // Kill the entire process tree (cross-platform) so no orphaned backend
       // processes remain after the app closes.
-      treeKill(this.process.pid, 'SIGTERM')
+      treeKill(this.process.pid, 'SIGTERM', (err) => {
+        if (err) console.error('[PythonBridge] Failed to kill process tree:', err)
+      })
       this.process = null
     }
     try { fs.unlinkSync(PORT_FILE) } catch (_) {}

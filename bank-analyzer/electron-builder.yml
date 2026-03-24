@@ -11,6 +11,19 @@ win:
   target:
     - target: nsis
     - target: portable
+  nsis:
+    # Show the traditional installer wizard instead of a silent one-click install
+    oneClick: false
+    # Let the user choose where to install the application
+    allowToChangeInstallationDirectory: true
+    # Install per-user by default (no admin rights needed)
+    perMachine: false
+    # Create shortcuts so the user can find the app easily
+    createDesktopShortcut: true
+    createStartMenuShortcut: true
+    shortcutName: "Bank Analyzer"
+    # Do NOT delete user data when uninstalling
+    deleteAppDataOnUninstall: false
 extraResources:
   - from: python-dist/
     to: python/

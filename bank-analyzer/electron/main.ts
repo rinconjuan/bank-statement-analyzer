@@ -62,7 +62,19 @@ async function createWindow(): Promise<void> {
     console.log(`Python backend ready on port ${port}`)
   } catch (err) {
     console.error('Failed to start Python backend:', err)
-    port = 8000
+    // Show a user-friendly dialog instead of an uncaught-exception crash.
+    // Note: the Electron main process has no access to the React i18n context,
+    // so the message is shown in both supported languages (ES / EN).
+    dialog.showErrorBox(
+      'Error al iniciar el backend / Backend startup error',
+      `No se pudo iniciar el servicio de backend.\n` +
+      `Could not start the backend service.\n\n` +
+      `${err instanceof Error ? err.message : String(err)}\n\n` +
+      `Por favor reinstale la aplicación.\n` +
+      `Please reinstall the application.`
+    )
+    app.quit()
+    return
   }
 
   // Expose port globally so the IPC 'get:apiPort' handler can read it.
