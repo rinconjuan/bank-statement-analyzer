@@ -25,14 +25,14 @@ export class PythonBridge {
     try { fs.unlinkSync(PORT_FILE) } catch (_) {}
 
     const pythonPath = isDev
-      ? findPython()
-      : path.join(process.resourcesPath, 'python', 'main')
+  ? findPython()
+  : path.join(process.resourcesPath, 'python', 'bank-analyzer-backend.exe')
 
-    const scriptPath = isDev
-      ? path.join(__dirname, '../python/main.py')
-      : ''
+  const scriptPath = isDev
+    ? path.join(__dirname, '../python/main.py')
+    : '' // No arguments needed, the .exe is standalone
 
-    const args = isDev ? [scriptPath] : []
+  const args = isDev ? [scriptPath] : [] // Empty args for .exe in production
     const env = {
       ...process.env,
       PORT_FILE,
