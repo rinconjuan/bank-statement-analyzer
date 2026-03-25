@@ -189,11 +189,23 @@ def get_trends(db: Session = Depends(get_db)):
     def _month_key(m: Month) -> str:
         return f'{m.year}-{m.month:02d}'
 
+    # Load ALL movements for ALL months in a single query to avoid N+1
+    all_month_ids = [m.id for m in all_months]
+    all_movements_raw = (
+        db.query(Movement)
+        .filter(Movement.month_id.in_(all_month_ids))
+        .all()
+    ) if all_month_ids else []
+
+    movs_by_month_id: dict[int, list] = defaultdict(list)
+    for mv in all_movements_raw:
+        movs_by_month_id[mv.month_id].append(mv)
+
     # ── 1. Monthly totals ──────────────────────────────────────────────────
     monthly_totals_map: dict[str, MonthlyTotal] = {}
     for m in all_months:
         key = _month_key(m)
-        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        movs = movs_by_month_id[m.id]
         expenses = sum(mv.amount for mv in movs if mv.type == 'Egreso')
         income = sum(mv.amount for mv in movs if mv.type == 'Ingreso')
         monthly_totals_map[key] = MonthlyTotal(
@@ -212,7 +224,7 @@ def get_trends(db: Session = Depends(get_db)):
 
     for m in all_months:
         key = _month_key(m)
-        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        movs = movs_by_month_id[m.id]
         for mv in movs:
             if mv.type != 'Egreso':
                 continue
@@ -270,7 +282,7 @@ def get_trends(db: Session = Depends(get_db)):
 
     for m in all_months:
         month_key = _month_key(m)
-        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        movs = movs_by_month_id[m.id]
         for mv in movs:
             if mv.type != 'Egreso':
                 continue

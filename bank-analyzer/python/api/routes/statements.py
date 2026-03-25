@@ -163,12 +163,24 @@ async def upload_statement(
 @router.get('/months', response_model=list[MonthWithStats])
 def get_months(db: Session = Depends(get_db)):
     months = db.query(Month).order_by(Month.year.desc(), Month.month.desc()).all()
+    if not months:
+        return []
+
+    # Load all movements for all months in a single query to avoid N+1
+    month_ids = [m.id for m in months]
+    all_movements = (
+        db.query(Movement)
+        .filter(Movement.month_id.in_(month_ids))
+        .all()
+    )
+    movs_by_month: dict[int, list] = defaultdict(list)
+    for mv in all_movements:
+        movs_by_month[mv.month_id].append(mv)
+
     result = []
     for m in months:
-        movements = db.query(Movement).filter(Movement.month_id == m.id).all()
+        movements = movs_by_month[m.id]
         # Exclude internal bolsillo/pocket movements from totals for savings accounts.
-        # Including them would double-count the same money (Bolsillo is part of the same
-        # account balance, not a separate source of income or expense).
         if m.statement_type != 'tarjeta_credito':
             movements = [
                 mv for mv in movements
