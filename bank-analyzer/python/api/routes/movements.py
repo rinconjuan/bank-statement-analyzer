@@ -55,26 +55,38 @@ def get_movements(
     calendar_month: Optional[str] = Query(None, description='Filter by calendar month YYYY-MM'),
     category_id: Optional[int] = Query(None),
     movement_type: Optional[str] = Query(None, alias='type'),
-    search: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, max_length=200),
+    limit: Optional[int] = Query(None, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
     q = db.query(Movement)
     if month_id is not None:
         q = q.filter(Movement.month_id == month_id)
     if calendar_month is not None:
-        # dates stored as DD/MM/YYYY — match /MM/YYYY suffix
+        # Validate both parts are integers before using in LIKE pattern.
+        # NOTE: Zero-padding month to 2 digits (%02d) is intentional — it fixes
+        # a latent bug where single-digit months (e.g. "1") would not match
+        # stored dates like "15/01/2025".
         try:
-            year, month = calendar_month.split('-')
-            q = q.filter(Movement.date.like(f'%/{month}/{year}'))
+            year_str, month_str = calendar_month.split('-')
+            year_int = int(year_str)
+            month_int = int(month_str)
+            if not (1 <= month_int <= 12 and 1900 <= year_int <= 2100):
+                raise ValueError
+            q = q.filter(Movement.date.like(f'%/{month_int:02d}/{year_int}'))
         except ValueError:
-            pass
+            pass  # invalid format — return unfiltered
     if category_id is not None:
         q = q.filter(Movement.category_id == category_id)
     if movement_type is not None:
         q = q.filter(Movement.type == movement_type)
     if search:
         q = q.filter(Movement.description.ilike(f'%{search}%'))
-    return q.order_by(Movement.date.desc()).all()
+    q = q.order_by(Movement.date.desc()).offset(offset)
+    if limit is not None:
+        q = q.limit(limit)
+    return q.all()
 
 
 @router.put('/{movement_id}', response_model=MovementSchema)
