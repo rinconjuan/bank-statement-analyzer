@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # npm — bank-analyzer/package.json
+  - package-ecosystem: npm
+    directory: /bank-analyzer
+    schedule:
+      interval: daily
+    target-branch: develop
+    groups:
+      non-security-updates:
+        dependency-type: direct
+        update-types:
+          - minor
+          - patch
+
+  # pip — bank-analyzer/python/requirements.txt
+  - package-ecosystem: pip
+    directory: /bank-analyzer/python
+    schedule:
+      interval: daily
+    target-branch: develop
+    groups:
+      non-security-updates:
+        dependency-type: direct
+        update-types:
+          - minor
+          - patch
