@@ -1,7 +1,8 @@
 {
   "name": "bank-analyzer",
-  "version": "1.0.0",
+  "version": "1.0.2.1",
   "description": "Bank Statement Analyzer Desktop App",
+  "author": "Obalu Software by Muffler",
   "main": "electron-dist/main.js",
   "scripts": {
     "dev": "node_modules\\.bin\\tsc -p electron/tsconfig.json && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",

@@ -41,7 +41,6 @@ export interface Movement {
   type: 'Ingreso' | 'Egreso'
   category_id: number | null
   note: string | null
-  applies_this_month: boolean | null
   statement_type: string
   category: Category | null
   // Credit card extended fields
@@ -141,7 +140,7 @@ export const fetchMovements = (params: { month_id?: number; calendar_month?: str
   return request<Movement[]>(`/api/v1/movements?${qs}`)
 }
 
-export const updateMovement = (id: number, data: { category_id?: number | null; note?: string | null; applies_this_month?: boolean | null }) =>
+export const updateMovement = (id: number, data: { category_id?: number | null; note?: string | null }) =>
   request<Movement>(`/api/v1/movements/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
