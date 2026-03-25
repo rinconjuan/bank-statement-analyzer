@@ -8,7 +8,7 @@
 
 ## Goal
 
-Automatically catch security vulnerabilities and code quality issues on every PR targeting `main`, and keep dependencies up to date daily via Dependabot.
+Automatically catch security vulnerabilities and code quality issues on every PR targeting `develop`, and keep dependencies up to date daily via Dependabot.
 
 ---
 
@@ -16,7 +16,7 @@ Automatically catch security vulnerabilities and code quality issues on every PR
 
 | File | Purpose |
 |------|---------|
-| `.github/workflows/ci.yml` | CI workflow — runs on PRs to `main` |
+| `.github/workflows/ci.yml` | CI workflow — runs on PRs to `develop` |
 | `.github/dependabot.yml` | Dependabot — daily updates for npm and pip |
 
 ---
@@ -28,10 +28,10 @@ Automatically catch security vulnerabilities and code quality issues on every PR
 ```yaml
 on:
   pull_request:
-    branches: [main]
+    branches: [develop]
 ```
 
-Runs on every PR targeting `main`. Does not run on push to feature branches (reduces noise).
+Runs on every PR targeting `develop` (the repo's default integration branch). Does not run on push to feature branches (reduces noise).
 
 ### Job 1: `audit-node`
 
@@ -43,7 +43,8 @@ Steps:
 2. Cache `~/.npm` keyed on hash of `bank-analyzer/package-lock.json`
 3. `npm ci` — clean install from lockfile
 4. `npm audit --audit-level=high` — fail only on high/critical CVEs; ignores low/moderate noise
-5. `npx tsc --noEmit` — type-check frontend (`tsconfig.json`) and Electron main process (`electron/tsconfig.json`)
+5. `npx tsc --noEmit` — type-check the React/Vite frontend (`tsconfig.json`)
+6. `npx tsc -p electron/tsconfig.json --noEmit` — type-check the Electron main process separately (it has its own standalone tsconfig not referenced by the root one)
 
 No ESLint step — no ESLint config exists in the project.
 
@@ -72,14 +73,14 @@ Both jobs run in parallel (`needs:` not set). A failing security scan in one doe
 
 - **Directory:** `/bank-analyzer` (location of `package.json`)
 - **Schedule:** daily
-- **Target branch:** `main`
+- **Target branch:** `develop`
 - **Grouping:** All non-security updates grouped into one PR per day. Security fixes always open as individual PRs immediately, bypassing grouping.
 
 ### pip ecosystem
 
 - **Directory:** `/bank-analyzer/python` (location of `requirements.txt`)
 - **Schedule:** daily
-- **Target branch:** `main`
+- **Target branch:** `develop`
 - **Grouping:** Same strategy as npm.
 
 ---
@@ -88,13 +89,13 @@ Both jobs run in parallel (`needs:` not set). A failing security scan in one doe
 
 | Event | Result |
 |-------|--------|
-| PR opened/updated targeting `main` | Both CI jobs run in parallel |
+| PR opened/updated targeting `develop` | Both CI jobs run in parallel |
 | `npm audit` finds high/critical CVE | `audit-node` job fails, PR blocked |
 | `tsc --noEmit` finds type errors | `audit-node` job fails, PR blocked |
 | `pip-audit` finds CVE | `audit-python` job fails, PR blocked |
 | `ruff` finds lint errors | `audit-python` job fails, PR blocked |
-| Dependabot finds npm update | PR opened against `main` (grouped daily) |
-| Dependabot finds pip update | PR opened against `main` (grouped daily) |
+| Dependabot finds npm update | PR opened against `develop` (grouped daily) |
+| Dependabot finds pip update | PR opened against `develop` (grouped daily) |
 | Dependabot finds security vulnerability | Immediate individual PR, not grouped |
 
 ---
