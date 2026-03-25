@@ -92,7 +92,7 @@ async def upload_statement(
     if fecha_corte:
         parts = fecha_corte.split('/')
         if len(parts) == 3:
-            day, month_num, year = int(parts[0]), int(parts[1]), int(parts[2])
+            _day, month_num, year = int(parts[0]), int(parts[1]), int(parts[2])
         else:
             fecha_corte = None
 
@@ -102,10 +102,10 @@ async def upload_statement(
             raise HTTPException(422, 'Could not determine statement date from PDF')
         parts = first_date.split('/')
         if len(parts) == 3:
-            day, month_num, year = int(parts[0]), int(parts[1]), int(parts[2])
+            _day, month_num, year = int(parts[0]), int(parts[1]), int(parts[2])
         elif len(parts) == 2:
             now = datetime.now()
-            day, month_num, year = int(parts[0]), int(parts[1]), now.year
+            _day, month_num, year = int(parts[0]), int(parts[1]), now.year
         else:
             now = datetime.now()
             month_num, year = now.month, now.year

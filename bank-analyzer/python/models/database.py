@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, Text,
-    DateTime, ForeignKey, UniqueConstraint, CheckConstraint, text
+    DateTime, ForeignKey, CheckConstraint, text
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
