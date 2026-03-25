@@ -30,7 +30,10 @@ function findPython(): string {
  */
 function killProcessSync(pid: number): void {
   // Validate that pid is a safe positive integer before using it in a shell command.
-  if (!Number.isInteger(pid) || pid <= 0) return
+  if (!Number.isInteger(pid) || pid <= 0) {
+    console.warn(`killProcessSync: invalid PID "${pid}", skipping kill`)
+    return
+  }
   if (process.platform === 'win32') {
     try {
       execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' })
