@@ -17,7 +17,6 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
   const [selectedCat, setSelectedCat] = useState<number | null>(movement.category_id)
   const [note, setNote] = useState(movement.note ?? '')
   const [saving, setSaving] = useState(false)
-  const [applies, setApplies] = useState<boolean | null>(movement.applies_this_month)
 
   const isIncome = movement.type === 'Ingreso'
   const rowBg = isIncome ? 'rgba(34,197,94,0.04)' : 'transparent'
@@ -42,17 +41,6 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
       onUpdated()
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleAppliesToggle = async () => {
-    // Cycle: null → true → false → null
-    const next = applies === null ? true : applies === true ? false : null
-    setApplies(next)
-    try {
-      await updateMovement(movement.id, { applies_this_month: next })
-    } catch {
-      setApplies(applies) // revert on error
     }
   }
 
@@ -184,20 +172,6 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
             <span className="opacity-0 group-hover:opacity-100 text-xs" style={{ color: 'var(--text-muted)' }}>✏️</span>
           </button>
         )}
-      </td>
-      {/* Aplica este mes toggle */}
-      <td className="px-4 py-2.5 text-center">
-        <button
-          onClick={handleAppliesToggle}
-          title={applies === null ? 'Sin definir — click para marcar como aplica' : applies ? 'Aplica este mes — click para marcar como no aplica' : 'No aplica — click para restablecer'}
-          className="w-6 h-6 rounded flex items-center justify-center mx-auto transition-all text-sm"
-          style={{
-            background: applies === true ? 'rgba(34,197,94,0.15)' : applies === false ? 'rgba(239,68,68,0.12)' : 'var(--bg-tertiary)',
-            border: `1px solid ${applies === true ? 'rgba(34,197,94,0.4)' : applies === false ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
-          }}
-        >
-          {applies === true ? '✓' : applies === false ? '✗' : '–'}
-        </button>
       </td>
     </tr>
   )
