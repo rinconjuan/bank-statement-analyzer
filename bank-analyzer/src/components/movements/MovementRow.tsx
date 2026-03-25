@@ -96,7 +96,7 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
         </span>
       </td>
       {showCuota && (
-        <td className="px-4 py-2.5 text-right text-xs font-mono">
+        <td className="px-4 py-2.5 text-right text-xs font-mono whitespace-nowrap">
           {movement.es_pago_tarjeta ? (
             <span
               className="px-2 py-0.5 rounded-full text-xs"

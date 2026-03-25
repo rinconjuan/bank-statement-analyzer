@@ -170,7 +170,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
               No hay movimientos
             </div>
           ) : (
-            <div className="overflow-auto max-h-96">
+            <div className="overflow-auto max-h-[560px]">
               <table className="w-full text-left">
                 <thead>
                   <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}>

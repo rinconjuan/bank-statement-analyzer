@@ -29,6 +29,8 @@ function findPython(): string {
  * Any child processes the backend spawned will be cleaned up by the OS.
  */
 function killProcessSync(pid: number): void {
+  // Validate that pid is a safe positive integer before using it in a shell command.
+  if (!Number.isInteger(pid) || pid <= 0) return
   if (process.platform === 'win32') {
     try {
       execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' })
