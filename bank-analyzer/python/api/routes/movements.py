@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict
 from typing import Optional
 
@@ -15,6 +16,8 @@ from core.categorizer import save_user_rule
 from core.constants import INTERNAL_MOVEMENT_KEYWORDS
 
 router = APIRouter()
+
+_DIGIT_RE = re.compile(r'\d')
 
 _MONTH_NAMES_ES = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -299,8 +302,7 @@ def get_trends(db: Session = Depends(get_db)):
             if mv.type != 'Egreso':
                 continue
             # Normalise: first 30 chars, uppercase, strip numbers
-            import re
-            normalised = re.sub(r'\d', '', mv.description[:30].upper()).strip()
+            normalised = _DIGIT_RE.sub('', mv.description[:30].upper()).strip()
             if len(normalised) < 4:
                 continue
             desc_occurrences[normalised].append({
