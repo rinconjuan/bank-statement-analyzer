@@ -494,7 +494,7 @@ def _parse_falabella_tables(pdf: 'pdfplumber.PDF') -> list[dict]:
 # Davivienda savings/checking account parser
 # ---------------------------------------------------------------------------
 
-def _parse_davivienda(file_path: str, full_text: str, password: str | None = None) -> list[dict]:
+def _parse_davivienda(file_path: str, full_text: str, password: str | None = None) -> tuple[list[dict], dict]:
     """Parse a Banco Davivienda account statement.
 
     Table columns: [day, month, '$amount+/-', doc_number, description, office]
