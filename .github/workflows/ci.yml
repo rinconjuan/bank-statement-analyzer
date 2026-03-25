@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop]
+
+jobs:
+  audit-node:
+    name: Node — Audit & Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bank-analyzer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          # Path is repo-root-relative (required by setup-node)
+          cache-dependency-path: bank-analyzer/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Type check — frontend
+        run: npx tsc --noEmit
+
+      - name: Type check — Electron main process
+        # electron/tsconfig.json is a standalone config not referenced by the root tsconfig
+        run: npx tsc -p electron/tsconfig.json --noEmit
+
+  audit-python:
+    name: Python — Audit & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          # Path is repo-root-relative (required by setup-python)
+          cache-dependency-path: bank-analyzer/python/requirements.txt
+
+      - name: Install audit and lint tools
+        run: pip install pip-audit ruff
+
+      - name: Security audit
+        working-directory: bank-analyzer/python
+        run: pip-audit -r requirements.txt
+
+      - name: Lint
+        working-directory: bank-analyzer/python
+        run: ruff check .
