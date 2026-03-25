@@ -1,12 +1,8 @@
 fastapi>=0.115.0
 uvicorn>=0.30.0
-pdfplumber==0.11.0
+pdfplumber>=0.12.0
 pandas==2.2.2
 openpyxl==3.1.2
 sqlalchemy==2.0.29
 pydantic==2.7.0
 python-multipart==0.0.22
-# Transitive dep of fastapi/uvicorn — pinned for CVE-2024-47874, CVE-2025-54121
-starlette>=0.47.2
-# Transitive dep of pdfplumber — pinned for CVE-2025-64512, CVE-2025-70559
-pdfminer-six>=20251230
