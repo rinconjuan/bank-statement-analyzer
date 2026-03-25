@@ -15,6 +15,8 @@ from core.constants import FIXED_CHARGE_KEYWORDS, INTERNAL_MOVEMENT_KEYWORDS
 
 router = APIRouter()
 
+MAX_PDF_BYTES = 50 * 1024 * 1024  # 50 MB
+
 _MONTH_NAMES_ES = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -50,10 +52,25 @@ async def upload_statement(
     if statement_type not in valid_types:
         statement_type = 'cuenta_ahorro'
 
-    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            tmp_path = tmp.name
+            written = 0
+            while True:
+                chunk = await file.read(65536)  # 64 KB chunks
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > MAX_PDF_BYTES:
+                    # Clean up partial file before raising
+                    if tmp_path and os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                        tmp_path = None
+                    raise HTTPException(413, 'File too large. Maximum size is 50 MB.')
+                tmp.write(chunk)
+    except HTTPException:
+        raise  # already cleaned up above; re-raise without double-unlink
 
     try:
         pdf_password = password.strip() or None
@@ -61,7 +78,9 @@ async def upload_statement(
     except PDFPasswordRequiredError:
         raise HTTPException(422, detail='PDF_PASSWORD_REQUIRED')
     finally:
-        os.unlink(tmp_path)
+        # Guard with os.path.exists — file may already be deleted if size limit was hit
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
     if not movements_data:
         raise HTTPException(422, 'No movements found in PDF')
@@ -147,7 +166,10 @@ async def upload_statement(
     db.commit()
     db.refresh(db_month)
 
-    auto_categorize_movements(db, db_month.id, db_month.statement_type)
+    try:
+        auto_categorize_movements(db, db_month.id, db_month.statement_type)
+    except Exception as e:
+        print(f'[WARNING] categorization failed for month {db_month.id}: {e}', flush=True)
 
     preview_mvs = db.query(Movement).filter(Movement.month_id == db_month.id).limit(10).all()
 
