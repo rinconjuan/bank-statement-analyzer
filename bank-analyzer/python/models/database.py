@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, Text,
-    DateTime, ForeignKey, UniqueConstraint, CheckConstraint, text
+    DateTime, ForeignKey, CheckConstraint, text
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
@@ -73,12 +73,12 @@ class Movement(Base):
     __tablename__ = 'movements'
 
     id = Column(Integer, primary_key=True, index=True)
-    month_id = Column(Integer, ForeignKey('months.id', ondelete='CASCADE'), nullable=False)
-    date = Column(String, nullable=False)
+    month_id = Column(Integer, ForeignKey('months.id', ondelete='CASCADE'), nullable=False, index=True)
+    date = Column(String, nullable=False, index=True)
     description = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
     type = Column(String, nullable=False)
-    category_id = Column(Integer, ForeignKey('categories.id', ondelete='SET NULL'), nullable=True)
+    category_id = Column(Integer, ForeignKey('categories.id', ondelete='SET NULL'), nullable=True, index=True)
     note = Column(Text, nullable=True)
     applies_this_month = Column(Integer, nullable=True)  # NULL=unknown, 1=yes, 0=no
     # Credit card extended fields
@@ -242,8 +242,10 @@ def init_db():
                 "ALTER TABLE months ADD COLUMN statement_type VARCHAR DEFAULT 'cuenta_ahorro'"
             ))
             db.commit()
-        except Exception:
-            db.rollback()  # column already exists – ignore
+        except Exception as e:
+            db.rollback()
+            if 'duplicate column name' not in str(e).lower() and 'already exists' not in str(e).lower():
+                raise
 
         # Add min_payment / total_payment columns to months if they don't exist yet
         for col_ddl in (
@@ -253,15 +255,19 @@ def init_db():
             try:
                 db.execute(text(col_ddl))
                 db.commit()
-            except Exception:
+            except Exception as e:
                 db.rollback()
+                if 'duplicate column name' not in str(e).lower() and 'already exists' not in str(e).lower():
+                    raise
 
         # Add applies_this_month column to movements if it doesn't exist yet
         try:
             db.execute(text("ALTER TABLE movements ADD COLUMN applies_this_month INTEGER"))
             db.commit()
-        except Exception:
-            db.rollback()  # column already exists – ignore
+        except Exception as e:
+            db.rollback()
+            if 'duplicate column name' not in str(e).lower() and 'already exists' not in str(e).lower():
+                raise
 
         # Add credit-card extended columns to movements
         for col_ddl in (
@@ -276,8 +282,10 @@ def init_db():
             try:
                 db.execute(text(col_ddl))
                 db.commit()
-            except Exception:
+            except Exception as e:
                 db.rollback()
+                if 'duplicate column name' not in str(e).lower() and 'already exists' not in str(e).lower():
+                    raise
 
         # Add credit-card extended columns to months
         for col_ddl in (
@@ -290,8 +298,10 @@ def init_db():
             try:
                 db.execute(text(col_ddl))
                 db.commit()
-            except Exception:
+            except Exception as e:
                 db.rollback()
+                if 'duplicate column name' not in str(e).lower() and 'already exists' not in str(e).lower():
+                    raise
 
         # Add Davivienda balance columns to months
         for col_ddl in (
@@ -302,8 +312,19 @@ def init_db():
             try:
                 db.execute(text(col_ddl))
                 db.commit()
-            except Exception:
+            except Exception as e:
                 db.rollback()
+                if 'duplicate column name' not in str(e).lower() and 'already exists' not in str(e).lower():
+                    raise
+
+        # Add performance indexes on movements (CREATE INDEX IF NOT EXISTS is idempotent — no exception handling needed)
+        for idx_ddl in (
+            "CREATE INDEX IF NOT EXISTS ix_movements_month_id ON movements (month_id)",
+            "CREATE INDEX IF NOT EXISTS ix_movements_category_id ON movements (category_id)",
+            "CREATE INDEX IF NOT EXISTS ix_movements_date ON movements (date)",
+        ):
+            db.execute(text(idx_ddl))
+        db.commit()
 
         # Migration: drop unique constraint (year, month) so that multiple statements
         # for the same month (e.g. savings account + credit card) can coexist.
@@ -315,29 +336,47 @@ def init_db():
             if row and row[0] and 'uq_year_month' in row[0]:
                 db.execute(text("""
                     CREATE TABLE months_migration (
-                        id    INTEGER NOT NULL PRIMARY KEY,
-                        year  INTEGER NOT NULL,
-                        month INTEGER NOT NULL,
-                        bank_name     VARCHAR,
-                        file_name     VARCHAR NOT NULL,
-                        statement_type VARCHAR DEFAULT 'cuenta_ahorro',
-                        uploaded_at   DATETIME,
-                        min_payment   FLOAT,
-                        total_payment FLOAT
+                        id                INTEGER NOT NULL PRIMARY KEY,
+                        year              INTEGER NOT NULL,
+                        month             INTEGER NOT NULL,
+                        bank_name         VARCHAR,
+                        file_name         VARCHAR NOT NULL,
+                        statement_type    VARCHAR DEFAULT 'cuenta_ahorro',
+                        uploaded_at       DATETIME,
+                        min_payment       FLOAT,
+                        total_payment     FLOAT,
+                        fecha_corte       VARCHAR,
+                        fecha_limite_pago VARCHAR,
+                        cupo_total        FLOAT DEFAULT 0.0,
+                        cupo_disponible   FLOAT DEFAULT 0.0,
+                        consumos_periodo  FLOAT DEFAULT 0.0,
+                        saldo_anterior    FLOAT,
+                        nuevo_saldo       FLOAT,
+                        saldo_bolsillo    FLOAT
                     )
                 """))
                 db.execute(text("""
-                    INSERT INTO months_migration
-                        (id, year, month, bank_name, file_name, statement_type, uploaded_at, min_payment, total_payment)
-                    SELECT id, year, month, bank_name, file_name, statement_type, uploaded_at, min_payment, total_payment
+                    INSERT INTO months_migration (
+                        id, year, month, bank_name, file_name, statement_type, uploaded_at,
+                        min_payment, total_payment,
+                        fecha_corte, fecha_limite_pago, cupo_total, cupo_disponible, consumos_periodo,
+                        saldo_anterior, nuevo_saldo, saldo_bolsillo
+                    )
+                    SELECT
+                        id, year, month, bank_name, file_name, statement_type, uploaded_at,
+                        min_payment, total_payment,
+                        fecha_corte, fecha_limite_pago, cupo_total, cupo_disponible, consumos_periodo,
+                        saldo_anterior, nuevo_saldo, saldo_bolsillo
                     FROM months
                 """))
                 db.execute(text("DROP TABLE months"))
                 db.execute(text("ALTER TABLE months_migration RENAME TO months"))
                 db.execute(text("CREATE INDEX IF NOT EXISTS ix_months_id ON months (id)"))
                 db.commit()
-        except Exception:
+        except Exception as e:
             db.rollback()
+            if 'already exists' not in str(e).lower():
+                raise
 
         # ── Seed / update categories ─────────────────────────────────────────
         # Always upsert so that keyword updates are applied to existing DBs

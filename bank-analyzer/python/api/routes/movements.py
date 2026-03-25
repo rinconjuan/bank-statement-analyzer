@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict
 from typing import Optional
 
@@ -15,6 +16,8 @@ from core.categorizer import save_user_rule
 from core.constants import INTERNAL_MOVEMENT_KEYWORDS
 
 router = APIRouter()
+
+_DIGIT_RE = re.compile(r'\d')
 
 _MONTH_NAMES_ES = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -55,26 +58,38 @@ def get_movements(
     calendar_month: Optional[str] = Query(None, description='Filter by calendar month YYYY-MM'),
     category_id: Optional[int] = Query(None),
     movement_type: Optional[str] = Query(None, alias='type'),
-    search: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, max_length=200),
+    limit: Optional[int] = Query(None, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
     q = db.query(Movement)
     if month_id is not None:
         q = q.filter(Movement.month_id == month_id)
     if calendar_month is not None:
-        # dates stored as DD/MM/YYYY — match /MM/YYYY suffix
+        # Validate both parts are integers before using in LIKE pattern.
+        # NOTE: Zero-padding month to 2 digits (%02d) is intentional — it fixes
+        # a latent bug where single-digit months (e.g. "1") would not match
+        # stored dates like "15/01/2025".
         try:
-            year, month = calendar_month.split('-')
-            q = q.filter(Movement.date.like(f'%/{month}/{year}'))
+            year_str, month_str = calendar_month.split('-')
+            year_int = int(year_str)
+            month_int = int(month_str)
+            if not (1 <= month_int <= 12 and 1900 <= year_int <= 2100):
+                raise ValueError
+            q = q.filter(Movement.date.like(f'%/{month_int:02d}/{year_int}'))
         except ValueError:
-            pass
+            pass  # invalid format — return unfiltered
     if category_id is not None:
         q = q.filter(Movement.category_id == category_id)
     if movement_type is not None:
         q = q.filter(Movement.type == movement_type)
     if search:
         q = q.filter(Movement.description.ilike(f'%{search}%'))
-    return q.order_by(Movement.date.desc()).all()
+    q = q.order_by(Movement.date.desc()).offset(offset)
+    if limit is not None:
+        q = q.limit(limit)
+    return q.all()
 
 
 @router.put('/{movement_id}', response_model=MovementSchema)
@@ -189,11 +204,23 @@ def get_trends(db: Session = Depends(get_db)):
     def _month_key(m: Month) -> str:
         return f'{m.year}-{m.month:02d}'
 
+    # Load ALL movements for ALL months in a single query to avoid N+1
+    all_month_ids = [m.id for m in all_months]
+    all_movements_raw = (
+        db.query(Movement)
+        .filter(Movement.month_id.in_(all_month_ids))
+        .all()
+    ) if all_month_ids else []
+
+    movs_by_month_id: dict[int, list] = defaultdict(list)
+    for mv in all_movements_raw:
+        movs_by_month_id[mv.month_id].append(mv)
+
     # ── 1. Monthly totals ──────────────────────────────────────────────────
     monthly_totals_map: dict[str, MonthlyTotal] = {}
     for m in all_months:
         key = _month_key(m)
-        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        movs = movs_by_month_id[m.id]
         expenses = sum(mv.amount for mv in movs if mv.type == 'Egreso')
         income = sum(mv.amount for mv in movs if mv.type == 'Ingreso')
         monthly_totals_map[key] = MonthlyTotal(
@@ -212,7 +239,7 @@ def get_trends(db: Session = Depends(get_db)):
 
     for m in all_months:
         key = _month_key(m)
-        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        movs = movs_by_month_id[m.id]
         for mv in movs:
             if mv.type != 'Egreso':
                 continue
@@ -270,13 +297,12 @@ def get_trends(db: Session = Depends(get_db)):
 
     for m in all_months:
         month_key = _month_key(m)
-        movs = db.query(Movement).filter(Movement.month_id == m.id).all()
+        movs = movs_by_month_id[m.id]
         for mv in movs:
             if mv.type != 'Egreso':
                 continue
             # Normalise: first 30 chars, uppercase, strip numbers
-            import re
-            normalised = re.sub(r'\d', '', mv.description[:30].upper()).strip()
+            normalised = _DIGIT_RE.sub('', mv.description[:30].upper()).strip()
             if len(normalised) < 4:
                 continue
             desc_occurrences[normalised].append({

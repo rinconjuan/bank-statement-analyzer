@@ -15,6 +15,8 @@ from core.constants import FIXED_CHARGE_KEYWORDS, INTERNAL_MOVEMENT_KEYWORDS
 
 router = APIRouter()
 
+MAX_PDF_BYTES = 50 * 1024 * 1024  # 50 MB
+
 _MONTH_NAMES_ES = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -50,10 +52,25 @@ async def upload_statement(
     if statement_type not in valid_types:
         statement_type = 'cuenta_ahorro'
 
-    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            tmp_path = tmp.name
+            written = 0
+            while True:
+                chunk = await file.read(65536)  # 64 KB chunks
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > MAX_PDF_BYTES:
+                    # Clean up partial file before raising
+                    if tmp_path and os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                        tmp_path = None
+                    raise HTTPException(413, 'File too large. Maximum size is 50 MB.')
+                tmp.write(chunk)
+    except HTTPException:
+        raise  # already cleaned up above; re-raise without double-unlink
 
     try:
         pdf_password = password.strip() or None
@@ -61,7 +78,9 @@ async def upload_statement(
     except PDFPasswordRequiredError:
         raise HTTPException(422, detail='PDF_PASSWORD_REQUIRED')
     finally:
-        os.unlink(tmp_path)
+        # Guard with os.path.exists — file may already be deleted if size limit was hit
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
     if not movements_data:
         raise HTTPException(422, 'No movements found in PDF')
@@ -73,7 +92,7 @@ async def upload_statement(
     if fecha_corte:
         parts = fecha_corte.split('/')
         if len(parts) == 3:
-            day, month_num, year = int(parts[0]), int(parts[1]), int(parts[2])
+            _day, month_num, year = int(parts[0]), int(parts[1]), int(parts[2])
         else:
             fecha_corte = None
 
@@ -83,10 +102,10 @@ async def upload_statement(
             raise HTTPException(422, 'Could not determine statement date from PDF')
         parts = first_date.split('/')
         if len(parts) == 3:
-            day, month_num, year = int(parts[0]), int(parts[1]), int(parts[2])
+            _day, month_num, year = int(parts[0]), int(parts[1]), int(parts[2])
         elif len(parts) == 2:
             now = datetime.now()
-            day, month_num, year = int(parts[0]), int(parts[1]), now.year
+            _day, month_num, year = int(parts[0]), int(parts[1]), now.year
         else:
             now = datetime.now()
             month_num, year = now.month, now.year
@@ -147,7 +166,10 @@ async def upload_statement(
     db.commit()
     db.refresh(db_month)
 
-    auto_categorize_movements(db, db_month.id, db_month.statement_type)
+    try:
+        auto_categorize_movements(db, db_month.id, db_month.statement_type)
+    except Exception as e:
+        print(f'[WARNING] categorization failed for month {db_month.id}: {e}', flush=True)
 
     preview_mvs = db.query(Movement).filter(Movement.month_id == db_month.id).limit(10).all()
 
@@ -163,12 +185,24 @@ async def upload_statement(
 @router.get('/months', response_model=list[MonthWithStats])
 def get_months(db: Session = Depends(get_db)):
     months = db.query(Month).order_by(Month.year.desc(), Month.month.desc()).all()
+    if not months:
+        return []
+
+    # Load all movements for all months in a single query to avoid N+1
+    month_ids = [m.id for m in months]
+    all_movements = (
+        db.query(Movement)
+        .filter(Movement.month_id.in_(month_ids))
+        .all()
+    )
+    movs_by_month: dict[int, list] = defaultdict(list)
+    for mv in all_movements:
+        movs_by_month[mv.month_id].append(mv)
+
     result = []
     for m in months:
-        movements = db.query(Movement).filter(Movement.month_id == m.id).all()
+        movements = movs_by_month[m.id]
         # Exclude internal bolsillo/pocket movements from totals for savings accounts.
-        # Including them would double-count the same money (Bolsillo is part of the same
-        # account balance, not a separate source of income or expense).
         if m.statement_type != 'tarjeta_credito':
             movements = [
                 mv for mv in movements

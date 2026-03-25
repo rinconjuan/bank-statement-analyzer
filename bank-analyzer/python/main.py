@@ -43,8 +43,12 @@ app = FastAPI(title='Bank Analyzer API', version='1.0.0', lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
-    allow_credentials=True,
+    # 'null' is required for the Electron renderer in production, which loads from
+    # file:// and sends Origin: null. allow_credentials MUST stay False — if ever
+    # changed to True, sandboxed iframes and data: URIs (which also send Origin: null)
+    # would gain cross-origin access to the backend.
+    allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173', 'null'],
+    allow_credentials=False,
     allow_methods=['*'],
     allow_headers=['*'],
 )

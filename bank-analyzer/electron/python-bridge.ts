@@ -1,18 +1,17 @@
-import { spawn, ChildProcess, execSync } from 'child_process'
+import { spawn, ChildProcess, spawnSync } from 'child_process'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
 import treeKill from 'tree-kill'
 
-const PORT_FILE = path.join(os.tmpdir(), 'bank_analyzer_port.json')
 const isDev = process.env.NODE_ENV === 'development' || !require('electron').app.isPackaged
 
 /** Returns the first Python interpreter found on PATH. */
 function findPython(): string {
   for (const cmd of ['python3', 'python']) {
     try {
-      execSync(`${cmd} --version`, { stdio: 'ignore' })
-      return cmd
+      const result = spawnSync(cmd, ['--version'], { stdio: 'ignore', timeout: 3000 })
+      if (result.status === 0) return cmd
     } catch (_) {}
   }
   throw new Error('Python interpreter not found. Install Python 3 and ensure it is on your PATH.')
@@ -20,6 +19,7 @@ function findPython(): string {
 
 export class PythonBridge {
   private process: ChildProcess | null = null
+  private portFilePath: string = path.join(os.tmpdir(), 'bank_analyzer_port.json') // fallback until start() is called
 
   /**
    * Start the Python backend.
@@ -28,12 +28,21 @@ export class PythonBridge {
    *                      survives app updates and reinstalls.
    */
   async start(userDataPath?: string): Promise<number> {
+    // Use userData dir for port file if available — avoids tmpdir collision on multi-instance launch
+    this.portFilePath = userDataPath
+      ? path.join(userDataPath, 'bank_analyzer_port.json')
+      : path.join(os.tmpdir(), 'bank_analyzer_port.json')
+
     // Clean up old port file
-    try { fs.unlinkSync(PORT_FILE) } catch (_) {}
+    try { fs.unlinkSync(this.portFilePath) } catch (_) {}
 
     const pythonPath = isDev
       ? findPython()
-      : path.join(process.resourcesPath, 'python', 'bank-analyzer-backend.exe')
+      : path.join(
+          process.resourcesPath,
+          'python',
+          process.platform === 'win32' ? 'bank-analyzer-backend.exe' : 'bank-analyzer-backend'
+        )
 
     // In production, verify the bundled executable exists before trying to
     // spawn it.  A missing file would otherwise surface as an unhelpful
@@ -61,7 +70,7 @@ export class PythonBridge {
 
     const env = {
       ...process.env,
-      PORT_FILE,
+      PORT_FILE: this.portFilePath,
       PYTHONUNBUFFERED: '1',
       ...(dbPath ? { DB_PATH: dbPath } : {}),
     }
@@ -79,17 +88,34 @@ export class PythonBridge {
   private waitForPort(maxWait = 15000): Promise<number> {
     return new Promise((resolve, reject) => {
       const start = Date.now()
+
+      const cleanup = (err?: Error) => {
+        clearInterval(interval)
+        this.process?.removeListener('exit', onExit)
+        this.process?.removeListener('error', onError)
+        if (err) reject(err)
+      }
+
+      const onExit = (code: number | null) => {
+        cleanup(new Error(`Python backend exited unexpectedly (code ${code})`))
+      }
+      const onError = (err: Error) => {
+        cleanup(new Error(`Python backend failed to start: ${err.message}`))
+      }
+
+      this.process?.once('exit', onExit)
+      this.process?.once('error', onError)
+
       const interval = setInterval(() => {
         if (Date.now() - start > maxWait) {
-          clearInterval(interval)
-          reject(new Error('Python backend did not start in time'))
+          cleanup(new Error('Python backend did not start in time'))
           return
         }
         try {
-          if (fs.existsSync(PORT_FILE)) {
-            const data = JSON.parse(fs.readFileSync(PORT_FILE, 'utf-8'))
-            if (data.port) {
-              clearInterval(interval)
+          if (fs.existsSync(this.portFilePath)) {
+            const data = JSON.parse(fs.readFileSync(this.portFilePath, 'utf-8'))
+            if (data.port && typeof data.port === 'number' && data.port > 1023 && data.port < 65536) {
+              cleanup()
               resolve(data.port)
             }
           }
@@ -107,6 +133,6 @@ export class PythonBridge {
       })
       this.process = null
     }
-    try { fs.unlinkSync(PORT_FILE) } catch (_) {}
+    try { fs.unlinkSync(this.portFilePath) } catch (_) {}
   }
 }
