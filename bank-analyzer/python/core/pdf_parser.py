@@ -128,7 +128,7 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
 
         if bank_name == 'falabella':
             # Use the dedicated Falabella parser (text-based + table for split-line entries)
-            movements = _parse_falabella(file_path, full_text, password=password)
+            movements = _parse_falabella(file_path, full_text, pdf=pdf, password=password)
             metadata = _extract_falabella_metadata(full_text)
         elif bank_name == 'davivienda':
             movements, davivienda_meta = _parse_davivienda(file_path, full_text, password=password)
@@ -260,7 +260,7 @@ def _extract_falabella_metadata(text: str) -> dict:
 # Falabella / CMR credit-card parser
 # ---------------------------------------------------------------------------
 
-def _parse_falabella(file_path: str, full_text: str, password: str | None = None) -> list[dict]:
+def _parse_falabella(file_path: str, full_text: str, pdf: 'pdfplumber.PDF', password: str | None = None) -> list[dict]:
     """Parse a Banco Falabella CMR credit-card statement.
 
     Uses two complementary strategies and merges the results:
@@ -272,7 +272,7 @@ def _parse_falabella(file_path: str, full_text: str, password: str | None = None
     Table data takes priority when both sources capture the same entry
     (matched by date + rounded amount).
     """
-    table_movs = _parse_falabella_tables(file_path, password=password)
+    table_movs = _parse_falabella_tables(pdf)
     text_movs = _parse_falabella_text(full_text)
 
     # Build seen set from table results (primary)
@@ -391,7 +391,7 @@ def _parse_cuotas(s: str) -> tuple:
     return None, None
 
 
-def _parse_falabella_tables(file_path: str, password: str | None = None) -> list[dict]:
+def _parse_falabella_tables(pdf: 'pdfplumber.PDF') -> list[dict]:
     """Extract movements from the pdfplumber tables of a Falabella statement.
 
     Table columns (Falabella credit card):
@@ -401,93 +401,91 @@ def _parse_falabella_tables(file_path: str, password: str | None = None) -> list
 
     Covers entries whose description is split across lines in the raw text
     (e.g. 'ABONO COMPRA MASTERCARD INTERN').
+
+    Accepts an already-open pdfplumber.PDF object to avoid re-opening the file.
     """
     movements: list[dict] = []
-    open_kwargs: dict = {}
-    if password:
-        open_kwargs['password'] = password
 
-    with pdfplumber.open(file_path, **open_kwargs) as pdf:
-        for page in pdf.pages:
-            for table in page.extract_tables():
-                for row in table:
-                    cells = [str(c) if c is not None else '' for c in row]
-                    if len(cells) < 3:
-                        continue
+    for page in pdf.pages:
+        for table in page.extract_tables():
+            for row in table:
+                cells = [str(c) if c is not None else '' for c in row]
+                if len(cells) < 3:
+                    continue
 
-                    date = cells[0].strip()
-                    if not re.match(r'^\d{2}/\d{2}/\d{4}$', date):
-                        continue
+                date = cells[0].strip()
+                if not re.match(r'^\d{2}/\d{2}/\d{4}$', date):
+                    continue
 
-                    description = cells[1].strip() if len(cells) > 1 else ''
-                    description = description.replace('\n', ' ').strip()
-                    if _is_doubled_text(description):
-                        description = re.sub(r'(.)\1', r'\1', description)
-                    if not description:
-                        continue
+                description = cells[1].strip() if len(cells) > 1 else ''
+                description = description.replace('\n', ' ').strip()
+                if _is_doubled_text(description):
+                    description = re.sub(r'(.)\1', r'\1', description)
+                if not description:
+                    continue
 
-                    # Column 3: transaction amount (first line for USD/COP multi-line entries)
-                    col3 = (cells[3].split('\n')[0].strip()) if len(cells) > 3 else ''
-                    # Column 6: cuota a pagar — also used as amount fallback for payments
-                    col6 = cells[6].strip() if len(cells) > 6 else ''
-                    amount_str = col3 or col6
+                # Column 3: transaction amount (first line for USD/COP multi-line entries)
+                col3 = (cells[3].split('\n')[0].strip()) if len(cells) > 3 else ''
+                # Column 6: cuota a pagar — also used as amount fallback for payments
+                col6 = cells[6].strip() if len(cells) > 6 else ''
+                amount_str = col3 or col6
 
-                    if not amount_str:
-                        continue
+                if not amount_str:
+                    continue
 
+                try:
+                    amount = parse_amount(amount_str)
+                except Exception:
+                    continue
+
+                if amount == 0:
+                    continue
+
+                # Extract cuota_mes (col 6) — separate from amount
+                cuota_mes = 0.0
+                if len(cells) > 6 and cells[6].strip():
                     try:
-                        amount = parse_amount(amount_str)
+                        cuota_mes = abs(parse_amount(cells[6].strip()))
                     except Exception:
-                        continue
+                        cuota_mes = 0.0
 
-                    if amount == 0:
-                        continue
+                # Extract valor_pendiente (col 7)
+                valor_pendiente = 0.0
+                if len(cells) > 7 and cells[7].strip():
+                    try:
+                        valor_pendiente = abs(parse_amount(cells[7].strip()))
+                    except Exception:
+                        valor_pendiente = 0.0
 
-                    # Extract cuota_mes (col 6) — separate from amount
-                    cuota_mes = 0.0
-                    if len(cells) > 6 and cells[6].strip():
-                        try:
-                            cuota_mes = abs(parse_amount(cells[6].strip()))
-                        except Exception:
-                            cuota_mes = 0.0
+                # Extract num_cuotas (col 4) — format "X de Y"
+                num_cuotas_actual: Optional[int] = None
+                num_cuotas_total: Optional[int] = None
+                if len(cells) > 4 and cells[4].strip():
+                    raw_cuotas = cells[4].strip()
+                    if _is_doubled_text(raw_cuotas):
+                        raw_cuotas = re.sub(r'(.)\1', r'\1', raw_cuotas)
+                    num_cuotas_actual, num_cuotas_total = _parse_cuotas(raw_cuotas)
 
-                    # Extract valor_pendiente (col 7)
-                    valor_pendiente = 0.0
-                    if len(cells) > 7 and cells[7].strip():
-                        try:
-                            valor_pendiente = abs(parse_amount(cells[7].strip()))
-                        except Exception:
-                            valor_pendiente = 0.0
+                mov_type = 'Ingreso' if amount < 0 else 'Egreso'
+                es_pago = 'pago tarjeta' in description.lower() or 'pago tc' in description.lower()
+                aplica = cuota_mes > 0 or es_pago
+                diferido = (not aplica) and (cuota_mes == 0) and (
+                    _FALABELLA_SEGURO_DESC not in description.lower()
+                )
 
-                    # Extract num_cuotas (col 4) — format "X de Y"
-                    num_cuotas_actual: Optional[int] = None
-                    num_cuotas_total: Optional[int] = None
-                    if len(cells) > 4 and cells[4].strip():
-                        raw_cuotas = cells[4].strip()
-                        if _is_doubled_text(raw_cuotas):
-                            raw_cuotas = re.sub(r'(.)\1', r'\1', raw_cuotas)
-                        num_cuotas_actual, num_cuotas_total = _parse_cuotas(raw_cuotas)
-
-                    mov_type = 'Ingreso' if amount < 0 else 'Egreso'
-                    es_pago = 'pago tarjeta' in description.lower() or 'pago tc' in description.lower()
-                    aplica = cuota_mes > 0 or es_pago
-                    diferido = (not aplica) and (cuota_mes == 0) and (
-                        _FALABELLA_SEGURO_DESC not in description.lower()
-                    )
-
-                    movements.append({
-                        'date': date,
-                        'description': description,
-                        'amount': abs(amount),
-                        'type': mov_type,
-                        'cuota_mes': cuota_mes,
-                        'valor_pendiente': valor_pendiente,
-                        'num_cuotas_actual': num_cuotas_actual,
-                        'num_cuotas_total': num_cuotas_total,
-                        'aplica_este_extracto': aplica,
-                        'es_pago_tarjeta': es_pago,
-                        'es_diferido_anterior': diferido,
-                    })
+                movements.append({
+                    'date': date,
+                    'description': description,
+                    'amount': abs(amount),
+                    'type': mov_type,
+                    'cuota_mes': cuota_mes,
+                    'valor_pendiente': valor_pendiente,
+                    'num_cuotas_actual': num_cuotas_actual,
+                    'num_cuotas_total': num_cuotas_total,
+                    'aplica_este_extracto': aplica,
+                    'es_pago_tarjeta': es_pago,
+                    'es_diferido_anterior': diferido,
+                })
 
     return movements
 

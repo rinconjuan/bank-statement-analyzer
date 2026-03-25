@@ -17,7 +17,6 @@ FALABELLA_PAYMENT_KEYWORDS: tuple[str, ...] = (
 # Keywords used to identify salary / primary income credits.
 SALARY_KEYWORDS: tuple[str, ...] = (
     'CITIBANK',
-    'TRANSFERENCIA',
     'NOMINA',
     'SALARIO',
     'SUELDO',
