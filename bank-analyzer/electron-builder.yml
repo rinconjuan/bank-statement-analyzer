@@ -19,6 +19,9 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: "Bank Analyzer"
   deleteAppDataOnUninstall: false
+  # Close the running application before installing/uninstalling so that
+  # the NSIS installer can replace locked files (e.g. bank-analyzer-backend.exe).
+  closeApplications: true
 extraResources:
   - from: python-dist/
     to: python/
