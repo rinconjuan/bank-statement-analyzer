@@ -2,6 +2,7 @@ import { spawn, ChildProcess, execSync } from 'child_process'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import treeKill from 'tree-kill'
 
 const PORT_FILE = path.join(os.tmpdir(), 'bank_analyzer_port.json')
 // Persists the PID of the running backend so orphaned processes from a
