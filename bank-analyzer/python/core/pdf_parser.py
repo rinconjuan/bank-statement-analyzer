@@ -370,6 +370,8 @@ def _parse_bancolombia_credit(text: str) -> list[dict]:
             cuota_mes = tail_values[0]
             if len(tail_values) > 1:
                 valor_pendiente = tail_values[-1]
+        elif not es_pago:
+            cuota_mes = abs(amount)
 
         aplica = es_pago or cuota_mes > 0
         diferido = (not aplica) and (cuota_mes == 0)

@@ -279,6 +279,7 @@ def get_credit_summary(month_id: int, db: Session = Depends(get_db)):
         'has_fixed_charge': False,
         'count': 0,
     })
+    statement_ym = f'{month.year:04d}-{month.month:02d}'
     total_consumos_nuevos = 0.0
     total_diferidos = 0.0
 
@@ -292,6 +293,7 @@ def get_credit_summary(month_id: int, db: Session = Depends(get_db)):
         cuota = mv.cuota_mes or 0.0
 
         ym = _date_to_ym(mv.date)
+        is_prior_calendar_month = ym < statement_ym
         monthly[ym]['total_consumos'] += mv.amount
         monthly[ym]['total_cuota'] += cuota
         monthly[ym]['count'] += 1
@@ -301,7 +303,7 @@ def get_credit_summary(month_id: int, db: Session = Depends(get_db)):
             total_consumos_nuevos += mv.amount    # fixed charge → full amount applies
         elif cuota > 0:
             total_consumos_nuevos += cuota         # normal instalment/purchase
-        else:
+        elif is_prior_calendar_month:
             total_diferidos += mv.amount           # deferred from prior period
 
     consumos_por_mes = [
