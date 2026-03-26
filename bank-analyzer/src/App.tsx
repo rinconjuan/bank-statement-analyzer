@@ -95,7 +95,7 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="space-y-6 max-w-7xl">
+            <div className="space-y-6 w-full">
               {/* Dashboard section header with Help button */}
               <div className="flex items-center justify-between">
                 <div />

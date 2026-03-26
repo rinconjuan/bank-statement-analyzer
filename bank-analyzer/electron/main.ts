@@ -130,3 +130,10 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
   pythonBridge?.stop()
 })
+
+// Synchronous last-resort cleanup: Node's 'exit' event fires even on abrupt
+// termination and only allows synchronous code — stop() uses execSync on
+// Windows so this works correctly.
+process.on('exit', () => {
+  pythonBridge?.stop()
+})

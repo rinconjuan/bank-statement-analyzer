@@ -17,10 +17,21 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
   const [selectedCat, setSelectedCat] = useState<number | null>(movement.category_id)
   const [note, setNote] = useState(movement.note ?? '')
   const [saving, setSaving] = useState(false)
-  const [applies, setApplies] = useState<boolean | null>(movement.applies_this_month)
 
   const isIncome = movement.type === 'Ingreso'
   const rowBg = isIncome ? 'rgba(34,197,94,0.04)' : 'transparent'
+
+  // Determinar el estado visual del movimiento para tarjeta de crédito
+  const isPendingDeferred = showCuota &&
+    !movement.es_pago_tarjeta &&
+    !movement.es_diferido_anterior &&
+    movement.cuota_mes === 0 &&
+    movement.type === 'Egreso'
+  // → compra que ocurrió este mes pero se cobra después
+
+  const isActiveDeferred = showCuota &&
+    movement.es_diferido_anterior
+  // → compra de un mes anterior que se cobra ahora
 
   const handleSave = async () => {
     setSaving(true)
@@ -33,21 +44,10 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
     }
   }
 
-  const handleAppliesToggle = async () => {
-    // Cycle: null → true → false → null
-    const next = applies === null ? true : applies === true ? false : null
-    setApplies(next)
-    try {
-      await updateMovement(movement.id, { applies_this_month: next })
-    } catch {
-      setApplies(applies) // revert on error
-    }
-  }
-
   const cat = movement.category
 
   return (
-    <tr style={{ background: rowBg, borderBottom: '1px solid var(--border)' }}>
+    <tr style={{ background: rowBg, borderBottom: '1px solid var(--border)', opacity: isPendingDeferred ? 0.55 : 1 }}>
       <td className="px-4 py-2.5 text-xs font-mono" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
         {movement.date}
       </td>
@@ -59,7 +59,20 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
           <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>{movement.note}</div>
         )}
       </td>
-      <td className="px-4 py-2.5 text-right text-sm font-mono font-medium" style={{ color: isIncome ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+      <td
+        className="px-4 py-2.5 text-right text-sm font-mono font-medium"
+        style={{
+          color: isIncome ? 'var(--accent-green)' : 'var(--accent-red)',
+          opacity: isPendingDeferred ? 0.7 : 1,
+        }}
+        title={
+          isPendingDeferred
+            ? 'Monto total de la compra — la cuota se cobrará en el siguiente extracto'
+            : isActiveDeferred
+            ? `Compra original: ${formatAmount(movement.amount)} — cobrada en cuotas`
+            : undefined
+        }
+      >
         {isIncome ? '+' : '-'}{formatAmount(movement.amount)}
       </td>
       <td className="px-4 py-2.5 text-xs">
@@ -71,13 +84,43 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
         </span>
       </td>
       {showCuota && (
-        <td className="px-4 py-2.5 text-right text-xs font-mono">
+        <td className="px-4 py-2.5 text-right text-xs font-mono whitespace-nowrap">
           {movement.es_pago_tarjeta ? (
-            <span style={{ color: 'var(--accent-primary)' }}>Pago realizado</span>
-          ) : movement.es_diferido_anterior ? (
-            <span style={{ color: 'var(--text-muted)' }}>Diferido</span>
+            <span
+              className="px-2 py-0.5 rounded-full text-xs"
+              style={{ background: 'rgba(79,127,255,0.15)', color: 'var(--accent-primary)' }}
+            >
+              Pago realizado
+            </span>
+          ) : isPendingDeferred ? (
+            // Compra registrada este mes pero cuota se cobra después
+            <span
+              className="px-2 py-0.5 rounded-full text-xs"
+              title="Esta compra se cobrará en el siguiente extracto"
+              style={{ background: 'rgba(234,179,8,0.15)', color: '#ca8a04', cursor: 'help' }}
+            >
+              ⏳ Próximo extracto
+            </span>
+          ) : isActiveDeferred ? (
+            // Compra de mes anterior que se cobra ahora
+            <div className="flex flex-col items-end gap-0.5">
+              <span
+                className="px-2 py-0.5 rounded-full text-xs"
+                title={`Compra realizada el ${movement.date}, cobrada en este extracto`}
+                style={{ background: 'rgba(148,163,184,0.15)', color: 'var(--text-secondary)', cursor: 'help' }}
+              >
+                🔄 Diferido
+              </span>
+              {movement.cuota_mes > 0 && (
+                <span style={{ color: 'var(--accent-green)', fontSize: 11 }}>
+                  {formatAmount(movement.cuota_mes)}
+                </span>
+              )}
+            </div>
           ) : movement.cuota_mes > 0 ? (
-            <span style={{ color: 'var(--accent-green)' }}>{formatAmount(movement.cuota_mes)}</span>
+            <span style={{ color: 'var(--accent-green)' }}>
+              {formatAmount(movement.cuota_mes)}
+            </span>
           ) : (
             <span style={{ color: 'var(--text-muted)' }}>—</span>
           )}
@@ -129,20 +172,6 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
             <span className="opacity-0 group-hover:opacity-100 text-xs" style={{ color: 'var(--text-muted)' }}>✏️</span>
           </button>
         )}
-      </td>
-      {/* Aplica este mes toggle */}
-      <td className="px-4 py-2.5 text-center">
-        <button
-          onClick={handleAppliesToggle}
-          title={applies === null ? 'Sin definir — click para marcar como aplica' : applies ? 'Aplica este mes — click para marcar como no aplica' : 'No aplica — click para restablecer'}
-          className="w-6 h-6 rounded flex items-center justify-center mx-auto transition-all text-sm"
-          style={{
-            background: applies === true ? 'rgba(34,197,94,0.15)' : applies === false ? 'rgba(239,68,68,0.12)' : 'var(--bg-tertiary)',
-            border: `1px solid ${applies === true ? 'rgba(34,197,94,0.4)' : applies === false ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
-          }}
-        >
-          {applies === true ? '✓' : applies === false ? '✗' : '–'}
-        </button>
       </td>
     </tr>
   )

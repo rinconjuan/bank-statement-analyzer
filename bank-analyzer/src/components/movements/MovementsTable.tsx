@@ -170,7 +170,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
               No hay movimientos
             </div>
           ) : (
-            <div className="overflow-auto max-h-96">
+            <div className="overflow-auto max-h-[560px]">
               <table className="w-full text-left">
                 <thead>
                   <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}>
@@ -182,7 +182,6 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
                       <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Cuota este mes</th>
                     )}
                     <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Categoría</th>
-                    <th className="px-4 py-2.5 text-xs font-medium text-center" style={{ color: 'var(--text-muted)' }} title="Marcar si aplica para el pago de este mes">Aplica</th>
                   </tr>
                 </thead>
                 <tbody>
