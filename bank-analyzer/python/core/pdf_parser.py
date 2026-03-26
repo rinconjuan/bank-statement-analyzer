@@ -371,8 +371,6 @@ def _parse_bancolombia_credit(text: str) -> list[dict]:
             if len(tail_values) > 1:
                 valor_pendiente = tail_values[-1]
         elif not es_pago:
-            # Bancolombia contado purchase: no separate cuota in tail, the full
-            # purchase amount is charged this statement — not a deferred charge.
             cuota_mes = abs(amount)
 
         aplica = es_pago or cuota_mes > 0
