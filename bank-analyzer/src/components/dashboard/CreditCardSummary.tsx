@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchCreditSummary, CreditSummary, MonthWithStats } from '../../services/api'
+import { fetchCreditSummary, fetchMovements, CreditSummary, MonthWithStats, Movement } from '../../services/api'
 
 function formatAmount(n: number): string {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
@@ -39,6 +39,43 @@ interface Props {
 export function CreditCardSummary({ month }: Props) {
   const [summary, setSummary] = useState<CreditSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showDeferidos, setShowDeferidos] = useState(false)
+  const [deferidos, setDeferidos] = useState<Movement[]>([])
+  const [loadingDeferidos, setLoadingDeferidos] = useState(false)
+
+  const handleDeferidosClick = async () => {
+    if (showDeferidos) {
+      setShowDeferidos(false)
+      return
+    }
+    if (deferidos.length === 0) {
+      setLoadingDeferidos(true)
+      try {
+        const all = await fetchMovements({ month_id: month.id })
+        const statementYm = `${month.year}-${String(month.month).padStart(2, '0')}`
+        const movementYm = (date: string) => {
+          const p = date.split('/')
+          return p.length === 3 ? `${p[2]}-${p[1]}` : ''
+        }
+        const sorted = all
+          .filter(m => m.es_diferido_anterior && movementYm(m.date) < statementYm)
+          .sort((a, b) => {
+            // DD/MM/YYYY sort
+            const toTs = (d: string) => {
+              const p = d.split('/')
+              return p.length === 3 ? new Date(+p[2], +p[1] - 1, +p[0]).getTime() : 0
+            }
+            return toTs(a.date) - toTs(b.date)
+          })
+        setDeferidos(sorted)
+      } catch {
+        // ignore
+      } finally {
+        setLoadingDeferidos(false)
+      }
+    }
+    setShowDeferidos(true)
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -194,10 +231,57 @@ export function CreditCardSummary({ month }: Props) {
               <span className="text-sm font-semibold" style={{ color: 'var(--accent-green)' }}>{formatAmount(summary.total_consumos_nuevos)}</span>
             </div>
             {summary.total_diferidos > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Diferidos de meses anteriores</span>
-                <span className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>{formatAmount(summary.total_diferidos)}</span>
-              </div>
+              <>
+                <div
+                  className="flex items-center justify-between rounded px-1 -mx-1 cursor-pointer"
+                  onClick={handleDeferidosClick}
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <span className="text-xs flex items-center gap-1">
+                    Diferidos de meses anteriores
+                    <span
+                      className="text-xs"
+                      style={{
+                        display: 'inline-block',
+                        transform: showDeferidos ? 'rotate(90deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.15s',
+                        fontSize: '0.55rem',
+                      }}
+                    >▶</span>
+                  </span>
+                  <span className="text-sm font-semibold" style={{ textDecoration: 'underline dotted' }}>
+                    {formatAmount(summary.total_diferidos)}
+                  </span>
+                </div>
+                {showDeferidos && (
+                  <div className="mt-2 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                    {loadingDeferidos ? (
+                      <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>Cargando movimientos...</div>
+                    ) : deferidos.length === 0 ? (
+                      <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>Sin movimientos diferidos</div>
+                    ) : (
+                      <table className="w-full" style={{ fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: 'var(--bg-tertiary)' }}>
+                            <th className="px-3 py-2 text-left font-medium" style={{ color: 'var(--text-muted)' }}>Fecha</th>
+                            <th className="px-3 py-2 text-left font-medium" style={{ color: 'var(--text-muted)' }}>Descripción</th>
+                            <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--text-muted)' }}>Valor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deferidos.map((m) => (
+                            <tr key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
+                              <td className="px-3 py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{m.date}</td>
+                              <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{m.description}</td>
+                              <td className="px-3 py-1.5 font-mono text-right whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{formatAmount(m.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
