@@ -71,7 +71,9 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
         }}
         title={
           isPendingDeferred
-            ? 'Monto total de la compra — la cuota se cobrará en el siguiente extracto'
+            ? movement.num_cuotas_total && movement.num_cuotas_total > 1
+              ? `Valor total de la compra en ${movement.num_cuotas_total} cuotas — cuota 1/${movement.num_cuotas_total} se cobrará en el siguiente extracto`
+              : 'Monto total de la compra — se cobrará en el siguiente extracto'
             : isActiveDeferred
             ? `Compra original: ${formatAmount(movement.amount)} — cobrada en cuotas`
             : undefined
@@ -109,10 +111,16 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
             // Compra registrada este mes pero cuota se cobra después
             <span
               className="px-2 py-0.5 rounded-full text-xs"
-              title="Esta compra se cobrará en el siguiente extracto"
+              title={
+                movement.num_cuotas_total && movement.num_cuotas_total > 1
+                  ? `Compra en ${movement.num_cuotas_total} cuotas de ${formatAmount(movement.amount / movement.num_cuotas_total)}. La cuota 1/${movement.num_cuotas_total} se cobrará en el siguiente extracto.`
+                  : 'Esta compra se cobrará en el siguiente extracto'
+              }
               style={{ background: 'rgba(234,179,8,0.15)', color: '#ca8a04', cursor: 'help' }}
             >
-              ⏳ Próximo extracto
+              {movement.num_cuotas_total && movement.num_cuotas_total > 1
+                ? `⏳ ${movement.num_cuotas_total} cuotas`
+                : '⏳ Próximo extracto'}
             </span>
           ) : isActiveDeferred ? (
             // Compra de mes anterior que se cobra ahora

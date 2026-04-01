@@ -176,7 +176,10 @@ function DashboardHelp({ lang }: { lang: Lang }) {
           label={l(lang, '💰 Pago total del período', '💰 Total payment for the period')}
           value={fmt(1_800_000)}
           color="var(--accent-red)"
-          sub={l(lang, 'Valor para pagar el total de la deuda sin intereses, según el extracto.', 'Amount to pay the total debt without interest, per the statement.')}
+          sub={l(lang,
+            'Valor para pagar el total de la deuda sin intereses, según el extracto. Incluye los consumos nuevos de este período MÁS las cuotas de compras realizadas en meses anteriores.',
+            'Amount to pay the total debt without interest, per the statement. Includes new charges for this period PLUS installments from purchases made in previous months.',
+          )}
         />
         <Row
           label={l(lang, '📋 Pago mínimo', '📋 Minimum payment')}
@@ -187,26 +190,32 @@ function DashboardHelp({ lang }: { lang: Lang }) {
             'Minimum amount required to avoid default. Paying only the minimum generates interest on the remainder.',
           )}
         />
+        <Callout>
+          💡 {l(lang,
+            <><strong>¿Por qué el "Pago total" es mayor que "Total consumos nuevos"?</strong> El pago total incluye lo que compraste <em>este período</em> más las cuotas de compras anteriores que se cobran ahora. Por ejemplo: si compraste algo en 6 cuotas hace 2 meses, la cuota de ese mes también se suma al pago total.</>,
+            <><strong>Why is "Total payment" higher than "New charges total"?</strong> The total payment includes what you bought <em>this period</em> plus installments from previous purchases being billed now.</>,
+          )}
+        </Callout>
 
         <div className="mt-4 mb-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
           {l(lang, 'Consumos por mes y valor de cuota', 'Monthly charges and installment value')}
         </div>
         <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
           {l(lang,
-            'En la sección "Consumos por mes", cada fila representa el mes calendario de los movimientos. "cuota" no es el total de compras del mes: es la suma de lo que realmente se cobra en este extracto para esos movimientos (campo "cuota_mes").',
-            'In the "Charges by month" section, each row represents the calendar month of the movements. "Installment" is not the total purchases for that month: it is the sum actually charged in this statement for those movements ("cuota_mes").',
+            'En la sección "Consumos por mes", cada fila representa el mes calendario de los movimientos. "Cuota este extracto" no es el total de compras del mes: es la suma de lo que realmente se cobra en este extracto para esos movimientos (una porción de compras en cuotas).',
+            'In the "Charges by month" section, each row represents the calendar month of the movements. "Installment this statement" is not the total purchases for that month: it is the sum actually charged in this statement for those movements (a portion of installment purchases).',
           )}
         </p>
         <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
           {l(lang,
-            'Si haces click en una fila, el panel se contrae y se abre un detalle lateral con los movimientos que componen ese valor de cuota.',
-            'If you click a row, the panel shrinks and a side detail opens with the movements that make up that installment value.',
+            'Haz clic en una fila para ver el detalle de los movimientos que componen ese valor de cuota. Se despliega una tabla debajo con la fecha de compra, descripción, cuota cobrada, valor total de la compra y número de cuota.',
+            'Click a row to see the detail of movements that make up that installment value. A table expands below with the purchase date, description, installment charged, total purchase value, and installment number.',
           )}
         </p>
         <Callout>
           💡 {l(lang,
-            <>Ejemplo: compra por <strong>$900.000</strong> a 6 cuotas puede mostrar <strong>cuota: $150.000</strong>. El total de consumo sigue siendo $900.000, pero en este extracto solo se cobra la cuota del mes.</>,
-            <>Example: a <strong>$900,000</strong> purchase in 6 installments may show <strong>installment: $150,000</strong>. Total charge remains $900,000, but this statement only charges the current installment.</>,
+            <>Ejemplo: compra por <strong>$900.000</strong> a 6 cuotas puede mostrar <strong>cuota este extracto: $150.000</strong>. El total de consumo sigue siendo $900.000, pero en este extracto solo se cobra la cuota del mes (1/6).</>,
+            <>Example: a <strong>$900,000</strong> purchase in 6 installments may show <strong>installment this statement: $150,000</strong>. Total charge remains $900,000, but this statement only charges the current installment (1/6).</>,
           )}
         </Callout>
       </Section>

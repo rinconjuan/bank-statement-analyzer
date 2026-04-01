@@ -155,31 +155,6 @@ export function CreditCardSummary({ month }: Props) {
 
   const cupoUsado = summary.cupo_total > 0 ? summary.cupo_total - summary.cupo_disponible : 0
   const cupoUsadoPct = summary.cupo_total > 0 ? Math.round((cupoUsado / summary.cupo_total) * 100) : 0
-  const detailMonthOptions = summary.consumos_por_mes.filter((r) => r.total_cuota > 0)
-
-  const toggleCuotaDetail = async () => {
-    if (showCuotaDetail) {
-      setShowCuotaDetail(false)
-      return
-    }
-
-    let targetMonth = selectedCuotaMes
-    const isCurrentSelectionValid = !!targetMonth && detailMonthOptions.some((m) => m.mes === targetMonth)
-    if (!isCurrentSelectionValid) {
-      targetMonth = detailMonthOptions[0]?.mes ?? null
-      setSelectedCuotaMes(targetMonth)
-    }
-
-    setShowCuotaDetail(true)
-    if (targetMonth) {
-      await loadCuotaMovements(targetMonth)
-    }
-  }
-
-  const handleDetailMonthChange = async (mesLabel: string) => {
-    setSelectedCuotaMes(mesLabel)
-    await loadCuotaMovements(mesLabel)
-  }
 
   return (
     <div className="space-y-4">
@@ -249,6 +224,13 @@ export function CreditCardSummary({ month }: Props) {
               Mínimo: {formatAmount(summary.pago_minimo)}
             </div>
           )}
+          <div
+            className="text-xs mt-2 pt-2"
+            style={{ borderTop: '1px dashed var(--border)', color: 'var(--text-muted)' }}
+            title="El pago total incluye los consumos nuevos de este período más las cuotas de compras realizadas en meses anteriores."
+          >
+            💡 Incluye consumos nuevos ({formatAmount(summary.total_consumos_nuevos)}) + diferidos ({formatAmount(summary.total_diferidos)})
+          </div>
         </div>
 
         {/* Card 3: Cupo disponible */}
@@ -278,56 +260,101 @@ export function CreditCardSummary({ month }: Props) {
         </div>
       </div>
 
-      {/* ── Row 2: Consumos por mes + Detalle lateral ── */}
+      {/* ── Row 2: Consumos por mes ── */}
       {summary.consumos_por_mes.length > 0 && (
-        <div className="flex gap-4 items-start">
-          {/* LEFT: Consumos por mes */}
-          <div className="flex-1 min-w-0 rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-            <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="space-y-3">
+          {/* Consumos por mes card */}
+          <div className="rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center justify-between mb-3 gap-3">
               <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Consumos por mes
               </div>
-              <button
-                type="button"
-                onClick={toggleCuotaDetail}
-                disabled={detailMonthOptions.length === 0}
-                className="text-xs px-2.5 py-1 rounded-full"
-                style={{
-                  border: '1px solid var(--border)',
-                  background: showCuotaDetail ? 'rgba(79,127,255,0.15)' : 'var(--bg-tertiary)',
-                  color: showCuotaDetail ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                  opacity: detailMonthOptions.length === 0 ? 0.5 : 1,
-                  cursor: detailMonthOptions.length === 0 ? 'not-allowed' : 'pointer',
-                }}
-                title={detailMonthOptions.length === 0 ? 'No hay meses con cuota para detallar' : 'Mostrar detalle por mes'}
-              >
-                {showCuotaDetail ? 'Ocultar detalle' : 'Detalle'}
-              </button>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Haz clic en una fila para ver los movimientos
+              </span>
             </div>
-            <div className="flex flex-col gap-2">
-              {summary.consumos_por_mes.map((row) => (
-                <div key={row.mes} className="flex items-center gap-3 px-2 py-1.5 rounded-lg">
-                  <span className="text-sm w-32 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{row.mes}</span>
-                  <span className="text-sm font-mono flex-1" style={{ color: 'var(--text-primary)' }}>{formatAmount(row.total_consumos)}</span>
-                  <span className="text-xs font-mono w-36 text-right" style={{ color: row.aplica_extracto ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-                    cuota: {formatAmount(row.total_cuota)}
-                  </span>
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+            {/* Table header */}
+            <div className="flex items-center gap-3 px-2 pb-1.5 mb-1" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="text-xs font-medium w-32 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>Mes</span>
+              <span className="text-xs font-medium flex-1" style={{ color: 'var(--text-muted)' }}>Total compras</span>
+              <span
+                className="text-xs font-medium w-36 text-right flex-shrink-0"
+                style={{ color: 'var(--text-muted)' }}
+                title="Monto de las cuotas de este mes que se cobran en este extracto"
+              >
+                Cuota este extracto ⓘ
+              </span>
+              <span className="text-xs font-medium w-28 text-center flex-shrink-0" style={{ color: 'var(--text-muted)' }}>Estado</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              {summary.consumos_por_mes.map((row) => {
+                const isSelected = selectedCuotaMes === row.mes && showCuotaDetail
+                const hasDetail = row.total_cuota > 0
+                return (
+                  <button
+                    key={row.mes}
+                    type="button"
+                    onClick={hasDetail ? () => {
+                      if (isSelected) {
+                        setShowCuotaDetail(false)
+                      } else {
+                        setSelectedCuotaMes(row.mes)
+                        setShowCuotaDetail(true)
+                        loadCuotaMovements(row.mes)
+                      }
+                    } : undefined}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded-lg w-full text-left transition-colors"
                     style={{
-                      background: row.aplica_extracto ? 'rgba(34,197,94,0.12)' : 'rgba(148,163,184,0.12)',
-                      color: row.aplica_extracto ? 'var(--accent-green)' : 'var(--text-muted)',
+                      background: isSelected ? 'rgba(79,127,255,0.10)' : 'transparent',
+                      cursor: hasDetail ? 'pointer' : 'default',
+                      border: isSelected ? '1px solid rgba(79,127,255,0.3)' : '1px solid transparent',
                     }}
                   >
-                    {row.aplica_extracto ? '🟢 Este extracto' : '🔵 Diferido'}
-                  </span>
-                </div>
-              ))}
+                    <span className="text-sm w-32 flex-shrink-0 flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+                      {row.mes}
+                      {hasDetail && (
+                        <span
+                          className="text-xs"
+                          style={{
+                            display: 'inline-block',
+                            transform: isSelected ? 'rotate(90deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.15s',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.55rem',
+                          }}
+                        >▶</span>
+                      )}
+                    </span>
+                    <span className="text-sm font-mono flex-1" style={{ color: 'var(--text-primary)' }}>{formatAmount(row.total_consumos)}</span>
+                    <span
+                      className="text-xs font-mono w-36 text-right flex-shrink-0"
+                      style={{ color: row.aplica_extracto ? 'var(--accent-green)' : 'var(--text-muted)' }}
+                    >
+                      {row.total_cuota > 0 ? formatAmount(row.total_cuota) : '—'}
+                    </span>
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 w-28 text-center"
+                      style={{
+                        background: row.aplica_extracto ? 'rgba(34,197,94,0.12)' : 'rgba(148,163,184,0.12)',
+                        color: row.aplica_extracto ? 'var(--accent-green)' : 'var(--text-muted)',
+                      }}
+                    >
+                      {row.aplica_extracto ? '🟢 Este extracto' : '🔵 Diferido'}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
             {/* Totals footer */}
             <div className="mt-4 pt-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
               <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Total consumos reales este mes</span>
+                <span
+                  className="text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Suma de compras nuevas de este período (sin diferidos de meses anteriores)"
+                >
+                  Total consumos nuevos este mes ⓘ
+                </span>
                 <span className="text-sm font-semibold" style={{ color: 'var(--accent-green)' }}>{formatAmount(summary.total_consumos_nuevos)}</span>
               </div>
               {summary.total_diferidos > 0 && (
@@ -366,7 +393,7 @@ export function CreditCardSummary({ month }: Props) {
                               <tr>
                                 <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Fecha</th>
                                 <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Descripción</th>
-                                <th className="px-3 py-2 text-right font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Valor</th>
+                                <th className="px-3 py-2 text-right font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Valor original</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -388,82 +415,90 @@ export function CreditCardSummary({ month }: Props) {
             </div>
           </div>
 
-          {/* RIGHT: Detalle de cuotas (animated slide-in from right) */}
-          <div
-            style={{
-              flexShrink: 0,
-              width: showCuotaDetail ? '45%' : '0',
-              overflow: 'hidden',
-              opacity: showCuotaDetail ? 1 : 0,
-              transform: showCuotaDetail ? 'translateX(0)' : 'translateX(16px)',
-              transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, transform 0.25s ease',
-              pointerEvents: showCuotaDetail ? 'auto' : 'none',
-            }}
-          >
-            <div className="rounded-xl p-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', minWidth: '280px' }}>
+          {/* Detalle de cuotas — shown below when a row is selected */}
+          {showCuotaDetail && selectedCuotaMes && (
+            <div className="rounded-xl p-4" style={{ background: 'var(--bg-secondary)', border: '1px solid rgba(79,127,255,0.3)' }}>
               <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                 <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  Detalle de cuotas por mes
+                  Movimientos · cuotas de <span style={{ color: 'var(--accent-primary)' }}>{selectedCuotaMes}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Mes:</label>
-                  <select
-                    value={selectedCuotaMes ?? ''}
-                    onChange={(e) => handleDetailMonthChange(e.target.value)}
-                    className="text-xs rounded px-2 py-1"
-                    style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-                  >
-                    {detailMonthOptions.map((m) => (
-                      <option key={m.mes} value={m.mes}>{m.mes}</option>
-                    ))}
-                  </select>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCuotaDetail(false)}
+                  className="text-xs px-2 py-0.5 rounded"
+                  style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                >
+                  ✕ Cerrar
+                </button>
               </div>
 
-              {!selectedCuotaMes ? (
-                <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>No hay meses con cuota para detallar.</div>
-              ) : loadingCuotaMes === selectedCuotaMes ? (
+              {loadingCuotaMes === selectedCuotaMes ? (
                 <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>Cargando movimientos...</div>
               ) : (cuotaMovements[selectedCuotaMes] ?? []).length === 0 ? (
                 <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>
                   No hay movimientos con cuota en este mes.
                 </div>
               ) : (
-                <div className="max-h-64 overflow-auto rounded-lg" style={{ border: '1px solid var(--border)' }}>
-                  <table className="w-full" style={{ fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Fecha</th>
-                        <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Descripción</th>
-                        <th className="px-3 py-2 text-right font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Cuota</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(cuotaMovements[selectedCuotaMes] ?? []).map((m) => (
-                        <tr key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td className="px-3 py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{m.date}</td>
-                          <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{m.description}</td>
-                          <td className="px-3 py-1.5 font-mono text-right whitespace-nowrap" style={{ color: 'var(--accent-green)' }}>
-                            {formatAmount(m.cuota_mes || 0)}
-                          </td>
+                <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                  <div className="overflow-auto max-h-72">
+                    <table className="w-full" style={{ fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Fecha compra</th>
+                          <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Descripción</th>
+                          <th
+                            className="px-3 py-2 text-right font-medium sticky top-0 z-10"
+                            style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}
+                            title="Cuota cobrada en este extracto (no el valor total de la compra)"
+                          >
+                            Cuota este extracto ⓘ
+                          </th>
+                          <th
+                            className="px-3 py-2 text-right font-medium sticky top-0 z-10"
+                            style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}
+                            title="Valor total original de la compra"
+                          >
+                            Valor total ⓘ
+                          </th>
+                          <th className="px-3 py-2 text-center font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Cuotas</th>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-tertiary)' }}>
-                        <td className="px-3 py-2 font-semibold" colSpan={2} style={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }}>
-                          Total cuotas {selectedCuotaMes}
-                        </td>
-                        <td className="px-3 py-2 font-mono font-semibold text-right" style={{ color: 'var(--accent-green)' }}>
-                          {formatAmount((cuotaMovements[selectedCuotaMes] ?? []).reduce((sum, m) => sum + (m.cuota_mes || 0), 0))}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {(cuotaMovements[selectedCuotaMes] ?? []).map((m) => (
+                          <tr key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
+                            <td className="px-3 py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{m.date}</td>
+                            <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{m.description}</td>
+                            <td className="px-3 py-1.5 font-mono text-right whitespace-nowrap" style={{ color: 'var(--accent-green)' }}>
+                              {formatAmount(m.cuota_mes || 0)}
+                            </td>
+                            <td className="px-3 py-1.5 font-mono text-right whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+                              {formatAmount(m.amount)}
+                            </td>
+                            <td className="px-3 py-1.5 text-center whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+                              {m.num_cuotas_actual != null && m.num_cuotas_total != null
+                                ? `${m.num_cuotas_actual}/${m.num_cuotas_total}`
+                                : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-tertiary)' }}>
+                          <td className="px-3 py-2 font-semibold" colSpan={2} style={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }}>
+                            Total cuotas cobradas de {selectedCuotaMes}
+                          </td>
+                          <td className="px-3 py-2 font-mono font-semibold text-right" style={{ color: 'var(--accent-green)' }}>
+                            {formatAmount((cuotaMovements[selectedCuotaMes] ?? []).reduce((sum, m) => sum + (m.cuota_mes || 0), 0))}
+                          </td>
+                          <td colSpan={2} />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
