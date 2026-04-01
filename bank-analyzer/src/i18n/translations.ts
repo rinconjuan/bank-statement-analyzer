@@ -121,6 +121,9 @@ const es: Dict = {
   'mesAMes.extracto':          'Extracto',
   'mesAMes.movs':              'mov.',
   'mesAMes.nPayments':         '{n} pagos',
+
+  // ── Settings ──────────────────────────────────────────────────────────────────
+  'settings.categories':       'Categorías',
 }
 
 const en: Dict = {
@@ -241,6 +244,9 @@ const en: Dict = {
   'mesAMes.extracto':          'Statement',
   'mesAMes.movs':              'mov.',
   'mesAMes.nPayments':         '{n} payments',
+
+  // ── Settings ──────────────────────────────────────────────────────────────────
+  'settings.categories':       'Categories',
 }
 
 export function getDict(lang: Lang): Dict {

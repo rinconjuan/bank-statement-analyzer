@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Movement, Category, updateMovement } from '../../services/api'
+import { useLanguage } from '../../contexts/LanguageContext'
+import { translateCategoryName } from '../../i18n/categories'
 
 interface MovementRowProps {
   movement: Movement
@@ -13,6 +15,7 @@ function formatAmount(n: number): string {
 }
 
 export function MovementRow({ movement, categories, onUpdated, showCuota = false }: MovementRowProps) {
+  const { lang } = useLanguage()
   const [editing, setEditing] = useState(false)
   const [selectedCat, setSelectedCat] = useState<number | null>(movement.category_id)
   const [note, setNote] = useState(movement.note ?? '')
@@ -26,6 +29,7 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
     !movement.es_pago_tarjeta &&
     !movement.es_diferido_anterior &&
     movement.cuota_mes === 0 &&
+    !(movement.num_cuotas_actual === 1 && movement.num_cuotas_total === 1) &&
     movement.type === 'Egreso'
   // → compra que ocurrió este mes pero se cobra después
 
@@ -76,12 +80,21 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
         {isIncome ? '+' : '-'}{formatAmount(movement.amount)}
       </td>
       <td className="px-4 py-2.5 text-xs">
-        <span
-          className="px-2 py-0.5 rounded-full text-xs"
-          style={{ background: isIncome ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: isIncome ? 'var(--accent-green)' : 'var(--accent-red)' }}
-        >
-          {movement.type}
-        </span>
+        {showCuota && movement.es_pago_tarjeta ? (
+          <span
+            className="px-2 py-0.5 rounded-full text-xs"
+            style={{ background: 'rgba(79,127,255,0.15)', color: 'var(--accent-primary)' }}
+          >
+            Pago tarjeta
+          </span>
+        ) : (
+          <span
+            className="px-2 py-0.5 rounded-full text-xs"
+            style={{ background: isIncome ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: isIncome ? 'var(--accent-green)' : 'var(--accent-red)' }}
+          >
+            {movement.type}
+          </span>
+        )}
       </td>
       {showCuota && (
         <td className="px-4 py-2.5 text-right text-xs font-mono whitespace-nowrap">
@@ -135,9 +148,9 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
               className="text-xs rounded px-2 py-1 w-32"
               style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
             >
-              <option value="">Sin categoría</option>
+              <option value="">{lang === 'en' ? 'Uncategorized' : 'Sin categoría'}</option>
               {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                <option key={c.id} value={c.id}>{c.icon} {translateCategoryName(c.name, lang)}</option>
               ))}
             </select>
             <input
@@ -164,10 +177,10 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
                 className="text-xs px-2 py-0.5 rounded-full"
                 style={{ background: `${cat.color}20`, color: cat.color, border: `1px solid ${cat.color}40` }}
               >
-                {cat.icon} {cat.name}
+                {cat.icon} {translateCategoryName(cat.name, lang)}
               </span>
             ) : (
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Sin categoría</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{lang === 'en' ? 'Uncategorized' : 'Sin categoría'}</span>
             )}
             <span className="opacity-0 group-hover:opacity-100 text-xs" style={{ color: 'var(--text-muted)' }}>✏️</span>
           </button>

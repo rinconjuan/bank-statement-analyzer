@@ -593,18 +593,48 @@ def _parse_falabella_text(text: str) -> list[dict]:
         # Credit-card convention: positive = purchase (Egreso), negative = payment/credit (Ingreso)
         mov_type = 'Ingreso' if amount < 0 else 'Egreso'
         es_pago = 'pago tarjeta' in description.lower() or 'pago tc' in description.lower()
+
+        # Attempt to recover installment fields from the tail text.
+        # Typical Falabella line has: value movement, num cuotas, cuota mes, valor pendiente.
+        raw_tail = rest
+        if _is_doubled_text(raw_tail):
+            raw_tail = re.sub(r'(.)\1', r'\1', raw_tail)
+
+        num_cuotas_actual: Optional[int] = None
+        num_cuotas_total: Optional[int] = None
+        cuotas_m = re.search(r'(\d+)\s+de\s+(\d+)', raw_tail.lower())
+        if cuotas_m:
+            num_cuotas_actual = int(cuotas_m.group(1))
+            num_cuotas_total = int(cuotas_m.group(2))
+
+        cuota_mes = 0.0
+        valor_pendiente = 0.0
+        tail_values = [abs(v) for v in _extract_currency_values(raw_tail)]
+        if len(tail_values) >= 2:
+            # First value is usually movement amount; second is cuota del extracto.
+            cuota_mes = tail_values[1]
+            valor_pendiente = tail_values[-1] if len(tail_values) > 2 else 0.0
+
+        # Explicit 1 de 1 should never be considered "Próximo extracto".
+        # If cuota was not extracted, assume full amount applies in this statement.
+        if not es_pago and cuota_mes == 0 and num_cuotas_actual == 1 and num_cuotas_total == 1:
+            cuota_mes = abs(amount)
+
+        aplica = es_pago or cuota_mes > 0
+        diferido = (not aplica) and (cuota_mes == 0) and (_FALABELLA_SEGURO_DESC not in description.lower())
+
         movements.append({
             'date': date,
             'description': description,
             'amount': abs(amount),
             'type': mov_type,
-            'cuota_mes': 0.0,
-            'valor_pendiente': 0.0,
-            'num_cuotas_actual': None,
-            'num_cuotas_total': None,
-            'aplica_este_extracto': es_pago,  # text parser can't determine from cuota_mes
+            'cuota_mes': cuota_mes,
+            'valor_pendiente': valor_pendiente,
+            'num_cuotas_actual': num_cuotas_actual,
+            'num_cuotas_total': num_cuotas_total,
+            'aplica_este_extracto': aplica,
             'es_pago_tarjeta': es_pago,
-            'es_diferido_anterior': False,
+            'es_diferido_anterior': diferido,
         })
 
     return movements

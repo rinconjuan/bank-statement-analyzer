@@ -42,6 +42,57 @@ export function CreditCardSummary({ month }: Props) {
   const [showDeferidos, setShowDeferidos] = useState(false)
   const [deferidos, setDeferidos] = useState<Movement[]>([])
   const [loadingDeferidos, setLoadingDeferidos] = useState(false)
+  const [showCuotaDetail, setShowCuotaDetail] = useState(false)
+  const [selectedCuotaMes, setSelectedCuotaMes] = useState<string | null>(null)
+  const [cuotaMovements, setCuotaMovements] = useState<Record<string, Movement[]>>({})
+  const [loadingCuotaMes, setLoadingCuotaMes] = useState<string | null>(null)
+
+  const monthNameToNumber: Record<string, number> = {
+    Enero: 1,
+    Febrero: 2,
+    Marzo: 3,
+    Abril: 4,
+    Mayo: 5,
+    Junio: 6,
+    Julio: 7,
+    Agosto: 8,
+    Septiembre: 9,
+    Octubre: 10,
+    Noviembre: 11,
+    Diciembre: 12,
+  }
+
+  const movementMonthLabel = (dateStr: string) => {
+    const p = dateStr.split('/')
+    if (p.length !== 3) return ''
+    const y = Number(p[2])
+    const m = Number(p[1])
+    if (!y || !m || m < 1 || m > 12) return ''
+    const monthName = Object.keys(monthNameToNumber).find((k) => monthNameToNumber[k] === m)
+    return monthName ? `${monthName} ${y}` : ''
+  }
+
+  const loadCuotaMovements = async (mesLabel: string) => {
+    if (cuotaMovements[mesLabel]) return
+    setLoadingCuotaMes(mesLabel)
+    try {
+      const all = await fetchMovements({ month_id: month.id })
+      const selected = all
+        .filter((m) => !m.es_pago_tarjeta && m.type === 'Egreso' && movementMonthLabel(m.date) === mesLabel && (m.cuota_mes || 0) > 0)
+        .sort((a, b) => {
+          const toTs = (d: string) => {
+            const p = d.split('/')
+            return p.length === 3 ? new Date(+p[2], +p[1] - 1, +p[0]).getTime() : 0
+          }
+          return toTs(a.date) - toTs(b.date)
+        })
+      setCuotaMovements((prev) => ({ ...prev, [mesLabel]: selected }))
+    } catch {
+      setCuotaMovements((prev) => ({ ...prev, [mesLabel]: [] }))
+    } finally {
+      setLoadingCuotaMes(null)
+    }
+  }
 
   const handleDeferidosClick = async () => {
     if (showDeferidos) {
@@ -79,6 +130,10 @@ export function CreditCardSummary({ month }: Props) {
 
   useEffect(() => {
     setLoading(true)
+    setShowCuotaDetail(false)
+    setSelectedCuotaMes(null)
+    setCuotaMovements({})
+    setLoadingCuotaMes(null)
     fetchCreditSummary(month.id)
       .then(setSummary)
       .catch(() => setSummary(null))
@@ -100,6 +155,31 @@ export function CreditCardSummary({ month }: Props) {
 
   const cupoUsado = summary.cupo_total > 0 ? summary.cupo_total - summary.cupo_disponible : 0
   const cupoUsadoPct = summary.cupo_total > 0 ? Math.round((cupoUsado / summary.cupo_total) * 100) : 0
+  const detailMonthOptions = summary.consumos_por_mes.filter((r) => r.total_cuota > 0)
+
+  const toggleCuotaDetail = async () => {
+    if (showCuotaDetail) {
+      setShowCuotaDetail(false)
+      return
+    }
+
+    let targetMonth = selectedCuotaMes
+    const isCurrentSelectionValid = !!targetMonth && detailMonthOptions.some((m) => m.mes === targetMonth)
+    if (!isCurrentSelectionValid) {
+      targetMonth = detailMonthOptions[0]?.mes ?? null
+      setSelectedCuotaMes(targetMonth)
+    }
+
+    setShowCuotaDetail(true)
+    if (targetMonth) {
+      await loadCuotaMovements(targetMonth)
+    }
+  }
+
+  const handleDetailMonthChange = async (mesLabel: string) => {
+    setSelectedCuotaMes(mesLabel)
+    await loadCuotaMovements(mesLabel)
+  }
 
   return (
     <div className="space-y-4">
@@ -198,91 +278,191 @@ export function CreditCardSummary({ month }: Props) {
         </div>
       </div>
 
-      {/* ── Row 2: Consumos por mes ── */}
+      {/* ── Row 2: Consumos por mes + Detalle lateral ── */}
       {summary.consumos_por_mes.length > 0 && (
-        <div className="rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-          <div className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-            Consumos por mes
-          </div>
-          <div className="flex flex-col gap-2">
-            {summary.consumos_por_mes.map((row) => (
-              <div key={row.mes} className="flex items-center gap-3">
-                <span className="text-sm w-32 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{row.mes}</span>
-                <span className="text-sm font-mono flex-1" style={{ color: 'var(--text-primary)' }}>{formatAmount(row.total_consumos)}</span>
-                <span className="text-xs font-mono w-36 text-right" style={{ color: row.aplica_extracto ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-                  cuota: {formatAmount(row.total_cuota)}
-                </span>
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
-                  style={{
-                    background: row.aplica_extracto ? 'rgba(34,197,94,0.12)' : 'rgba(148,163,184,0.12)',
-                    color: row.aplica_extracto ? 'var(--accent-green)' : 'var(--text-muted)',
-                  }}
-                >
-                  {row.aplica_extracto ? '🟢 Este extracto' : '🔵 Diferido'}
-                </span>
+        <div className="flex gap-4 items-start">
+          {/* LEFT: Consumos por mes */}
+          <div className="flex-1 min-w-0 rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Consumos por mes
               </div>
-            ))}
-          </div>
-          {/* Totals footer */}
-          <div className="mt-4 pt-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Total consumos reales este mes</span>
-              <span className="text-sm font-semibold" style={{ color: 'var(--accent-green)' }}>{formatAmount(summary.total_consumos_nuevos)}</span>
+              <button
+                type="button"
+                onClick={toggleCuotaDetail}
+                disabled={detailMonthOptions.length === 0}
+                className="text-xs px-2.5 py-1 rounded-full"
+                style={{
+                  border: '1px solid var(--border)',
+                  background: showCuotaDetail ? 'rgba(79,127,255,0.15)' : 'var(--bg-tertiary)',
+                  color: showCuotaDetail ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  opacity: detailMonthOptions.length === 0 ? 0.5 : 1,
+                  cursor: detailMonthOptions.length === 0 ? 'not-allowed' : 'pointer',
+                }}
+                title={detailMonthOptions.length === 0 ? 'No hay meses con cuota para detallar' : 'Mostrar detalle por mes'}
+              >
+                {showCuotaDetail ? 'Ocultar detalle' : 'Detalle'}
+              </button>
             </div>
-            {summary.total_diferidos > 0 && (
-              <>
-                <div
-                  className="flex items-center justify-between rounded px-1 -mx-1 cursor-pointer"
-                  onClick={handleDeferidosClick}
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  <span className="text-xs flex items-center gap-1">
-                    Diferidos de meses anteriores
-                    <span
-                      className="text-xs"
-                      style={{
-                        display: 'inline-block',
-                        transform: showDeferidos ? 'rotate(90deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.15s',
-                        fontSize: '0.55rem',
-                      }}
-                    >▶</span>
+            <div className="flex flex-col gap-2">
+              {summary.consumos_por_mes.map((row) => (
+                <div key={row.mes} className="flex items-center gap-3 px-2 py-1.5 rounded-lg">
+                  <span className="text-sm w-32 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{row.mes}</span>
+                  <span className="text-sm font-mono flex-1" style={{ color: 'var(--text-primary)' }}>{formatAmount(row.total_consumos)}</span>
+                  <span className="text-xs font-mono w-36 text-right" style={{ color: row.aplica_extracto ? 'var(--accent-green)' : 'var(--text-muted)' }}>
+                    cuota: {formatAmount(row.total_cuota)}
                   </span>
-                  <span className="text-sm font-semibold" style={{ textDecoration: 'underline dotted' }}>
-                    {formatAmount(summary.total_diferidos)}
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{
+                      background: row.aplica_extracto ? 'rgba(34,197,94,0.12)' : 'rgba(148,163,184,0.12)',
+                      color: row.aplica_extracto ? 'var(--accent-green)' : 'var(--text-muted)',
+                    }}
+                  >
+                    {row.aplica_extracto ? '🟢 Este extracto' : '🔵 Diferido'}
                   </span>
                 </div>
-                {showDeferidos && (
-                  <div className="mt-2 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                    {loadingDeferidos ? (
-                      <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>Cargando movimientos...</div>
-                    ) : deferidos.length === 0 ? (
-                      <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>Sin movimientos diferidos</div>
-                    ) : (
-                      <table className="w-full" style={{ fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ background: 'var(--bg-tertiary)' }}>
-                            <th className="px-3 py-2 text-left font-medium" style={{ color: 'var(--text-muted)' }}>Fecha</th>
-                            <th className="px-3 py-2 text-left font-medium" style={{ color: 'var(--text-muted)' }}>Descripción</th>
-                            <th className="px-3 py-2 text-right font-medium" style={{ color: 'var(--text-muted)' }}>Valor</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {deferidos.map((m) => (
-                            <tr key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
-                              <td className="px-3 py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{m.date}</td>
-                              <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{m.description}</td>
-                              <td className="px-3 py-1.5 font-mono text-right whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{formatAmount(m.amount)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
+              ))}
+            </div>
+            {/* Totals footer */}
+            <div className="mt-4 pt-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Total consumos reales este mes</span>
+                <span className="text-sm font-semibold" style={{ color: 'var(--accent-green)' }}>{formatAmount(summary.total_consumos_nuevos)}</span>
+              </div>
+              {summary.total_diferidos > 0 && (
+                <>
+                  <div
+                    className="flex items-center justify-between rounded px-1 -mx-1 cursor-pointer"
+                    onClick={handleDeferidosClick}
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <span className="text-xs flex items-center gap-1">
+                      Diferidos de meses anteriores
+                      <span
+                        className="text-xs"
+                        style={{
+                          display: 'inline-block',
+                          transform: showDeferidos ? 'rotate(90deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.15s',
+                          fontSize: '0.55rem',
+                        }}
+                      >▶</span>
+                    </span>
+                    <span className="text-sm font-semibold" style={{ textDecoration: 'underline dotted' }}>
+                      {formatAmount(summary.total_diferidos)}
+                    </span>
                   </div>
-                )}
-              </>
-            )}
+                  {showDeferidos && (
+                    <div className="mt-2 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                      {loadingDeferidos ? (
+                        <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>Cargando movimientos...</div>
+                      ) : deferidos.length === 0 ? (
+                        <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>Sin movimientos diferidos</div>
+                      ) : (
+                        <div className="max-h-52 overflow-auto">
+                          <table className="w-full" style={{ fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr>
+                                <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Fecha</th>
+                                <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Descripción</th>
+                                <th className="px-3 py-2 text-right font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Valor</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {deferidos.map((m) => (
+                                <tr key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
+                                  <td className="px-3 py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{m.date}</td>
+                                  <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{m.description}</td>
+                                  <td className="px-3 py-1.5 font-mono text-right whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{formatAmount(m.amount)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT: Detalle de cuotas (animated slide-in from right) */}
+          <div
+            style={{
+              flexShrink: 0,
+              width: showCuotaDetail ? '45%' : '0',
+              overflow: 'hidden',
+              opacity: showCuotaDetail ? 1 : 0,
+              transform: showCuotaDetail ? 'translateX(0)' : 'translateX(16px)',
+              transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, transform 0.25s ease',
+              pointerEvents: showCuotaDetail ? 'auto' : 'none',
+            }}
+          >
+            <div className="rounded-xl p-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', minWidth: '280px' }}>
+              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Detalle de cuotas por mes
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Mes:</label>
+                  <select
+                    value={selectedCuotaMes ?? ''}
+                    onChange={(e) => handleDetailMonthChange(e.target.value)}
+                    className="text-xs rounded px-2 py-1"
+                    style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                  >
+                    {detailMonthOptions.map((m) => (
+                      <option key={m.mes} value={m.mes}>{m.mes}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {!selectedCuotaMes ? (
+                <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>No hay meses con cuota para detallar.</div>
+              ) : loadingCuotaMes === selectedCuotaMes ? (
+                <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>Cargando movimientos...</div>
+              ) : (cuotaMovements[selectedCuotaMes] ?? []).length === 0 ? (
+                <div className="text-xs p-3" style={{ color: 'var(--text-muted)' }}>
+                  No hay movimientos con cuota en este mes.
+                </div>
+              ) : (
+                <div className="max-h-64 overflow-auto rounded-lg" style={{ border: '1px solid var(--border)' }}>
+                  <table className="w-full" style={{ fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Fecha</th>
+                        <th className="px-3 py-2 text-left font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Descripción</th>
+                        <th className="px-3 py-2 text-right font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Cuota</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(cuotaMovements[selectedCuotaMes] ?? []).map((m) => (
+                        <tr key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
+                          <td className="px-3 py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{m.date}</td>
+                          <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{m.description}</td>
+                          <td className="px-3 py-1.5 font-mono text-right whitespace-nowrap" style={{ color: 'var(--accent-green)' }}>
+                            {formatAmount(m.cuota_mes || 0)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-tertiary)' }}>
+                        <td className="px-3 py-2 font-semibold" colSpan={2} style={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }}>
+                          Total cuotas {selectedCuotaMes}
+                        </td>
+                        <td className="px-3 py-2 font-mono font-semibold text-right" style={{ color: 'var(--accent-green)' }}>
+                          {formatAmount((cuotaMovements[selectedCuotaMes] ?? []).reduce((sum, m) => sum + (m.cuota_mes || 0), 0))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -67,12 +67,15 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto p-6">
           {activeView === 'settings' ? (
-            <CategoryEditor
-              categories={categories}
-              onCreate={createCategory}
-              onUpdate={updateCategory}
-              onDelete={removeCategory}
-            />
+            <div>
+              <h1 className="text-2xl font-semibold mb-6" style={{ color: 'var(--text-primary)' }}>🗂️ {t('settings.categories')}</h1>
+              <CategoryEditor
+                categories={categories}
+                onCreate={createCategory}
+                onUpdate={updateCategory}
+                onDelete={removeCategory}
+              />
+            </div>
           ) : activeView === 'mes_a_mes' ? (
             <MesAMes categories={categories} />
           ) : activeView === 'tendencias' ? (

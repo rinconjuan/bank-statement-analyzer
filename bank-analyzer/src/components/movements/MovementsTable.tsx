@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { Movement, Category } from '../../services/api'
 import { MovementRow } from './MovementRow'
+import { useLanguage } from '../../contexts/LanguageContext'
+import { translateCategoryName } from '../../i18n/categories'
 
 interface MovementsTableProps {
   movements: Movement[]
@@ -16,6 +18,7 @@ function formatAmount(n: number): string {
 }
 
 export function MovementsTable({ movements, categories, onFiltersChange, onRefresh, loading, statementType = 'cuenta_ahorro' }: MovementsTableProps) {
+  const { lang } = useLanguage()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [catFilter, setCatFilter] = useState<number | undefined>(undefined)
@@ -44,7 +47,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
   const categoryTotals = useMemo(() => {
     const map = new Map<string, { name: string; icon: string; color: string; income: number; expense: number; count: number }>()
     for (const m of visibleMovements) {
-      const key = m.category?.name ?? 'Sin categoría'
+      const key = translateCategoryName(m.category?.name ?? 'Sin categoría', lang)
       const existing = map.get(key)
       if (existing) {
         if (m.type === 'Ingreso') existing.income += m.amount
@@ -111,7 +114,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
                 color: catFilter === undefined ? '#fff' : 'var(--text-secondary)',
               }}
             >
-              Todas
+              {lang === 'en' ? 'All' : 'Todas'}
             </button>
             {categories.map((c) => (
               <button
@@ -124,7 +127,7 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
                   border: catFilter === c.id ? `1px solid ${c.color}60` : '1px solid var(--border)',
                 }}
               >
-                {c.icon} {c.name}
+                {c.icon} {translateCategoryName(c.name, lang)}
               </button>
             ))}
           </div>
@@ -173,15 +176,15 @@ export function MovementsTable({ movements, categories, onFiltersChange, onRefre
             <div className="overflow-auto max-h-[560px]">
               <table className="w-full text-left">
                 <thead>
-                  <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}>
-                    <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Fecha</th>
-                    <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Descripción</th>
-                    <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Monto</th>
-                    <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Tipo</th>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    <th className="px-4 py-2.5 text-xs font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Fecha</th>
+                    <th className="px-4 py-2.5 text-xs font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Descripción</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-right sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Monto</th>
+                    <th className="px-4 py-2.5 text-xs font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Tipo</th>
                     {isCreditCard && (
-                      <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>Cuota este mes</th>
+                      <th className="px-4 py-2.5 text-xs font-medium text-right sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Cuota este mes</th>
                     )}
-                    <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Categoría</th>
+                    <th className="px-4 py-2.5 text-xs font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>Categoría</th>
                   </tr>
                 </thead>
                 <tbody>

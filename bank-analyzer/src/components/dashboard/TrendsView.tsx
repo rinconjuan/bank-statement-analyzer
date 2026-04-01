@@ -8,6 +8,7 @@ import {
 } from '../../services/api'
 import { HelpModal } from '../help/HelpModal'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { translateCategoryName } from '../../i18n/categories'
 
 function formatAmount(n: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -71,7 +72,7 @@ function BarChart({ data }: { data: { label: string; value: number; color?: stri
 }
 
 // ── Category trend row ────────────────────────────────────────────────────
-function CategoryTrendRow({ cat, t }: { cat: CategoryTrend; t: (k: string) => string }) {
+function CategoryTrendRow({ cat, t, lang }: { cat: CategoryTrend; t: (k: string) => string; lang: 'es' | 'en' }) {
   const sparkPoints = cat.points.map((p) => p.total)
   return (
     <div
@@ -81,7 +82,7 @@ function CategoryTrendRow({ cat, t }: { cat: CategoryTrend; t: (k: string) => st
       <span className="text-lg flex-shrink-0">{cat.category_icon}</span>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-          {cat.category_name}
+          {translateCategoryName(cat.category_name, lang)}
         </div>
         <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {t('trends.monthlyAvg')} {formatAmount(cat.avg_monthly)}
@@ -437,7 +438,7 @@ export function TrendsView() {
               </div>
             ) : (
               filteredCats.map((cat) => (
-                <CategoryTrendRow key={cat.category_id ?? cat.category_name} cat={cat} t={t} />
+                <CategoryTrendRow key={cat.category_id ?? cat.category_name} cat={cat} t={t} lang={lang} />
               ))
             )}
           </div>

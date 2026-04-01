@@ -454,16 +454,16 @@ function StatementSection({
         <div className="overflow-auto max-h-[480px]">
           <table className="w-full text-left">
             <thead>
-              <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}>
-                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colDate')}</th>
-                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colDesc')}</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colAmount')}</th>
-                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colType')}</th>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                <th className="px-4 py-2.5 text-xs font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>{t('mesAMes.colDate')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>{t('mesAMes.colDesc')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-right sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>{t('mesAMes.colAmount')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>{t('mesAMes.colType')}</th>
                 {isCreditCard && (
-                  <th className="px-4 py-2.5 text-xs font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colInstallment')}</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-right sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>{t('mesAMes.colInstallment')}</th>
                 )}
-                <th className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colCategory')}</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-center" style={{ color: 'var(--text-muted)' }}>{t('mesAMes.colApplies')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>{t('mesAMes.colCategory')}</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-center sticky top-0 z-10" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>{t('mesAMes.colApplies')}</th>
               </tr>
             </thead>
             <tbody>

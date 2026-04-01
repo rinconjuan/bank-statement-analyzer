@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
 import { MonthWithStats } from '../../services/api'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { useTheme } from '../../contexts/ThemeContext'
 
 const STATEMENT_TYPE_ICON: Record<string, string> = {
   cuenta_ahorro: '🏦',
@@ -18,9 +20,26 @@ interface SidebarProps {
 
 export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, onDeleteMonth, activeView, onViewChange }: SidebarProps) {
   const { lang, t } = useLanguage()
+  const { theme, setTheme, availableThemes } = useTheme()
+  const [showThemeMenu, setShowThemeMenu] = useState(false)
+  const themeMenuRef = useRef<HTMLDivElement | null>(null)
   const MONTH_NAMES = lang === 'en'
     ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     : ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!themeMenuRef.current) return
+      if (!themeMenuRef.current.contains(event.target as Node)) {
+        setShowThemeMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [])
 
   return (
     <aside
@@ -29,11 +48,52 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
     >
       {/* Logo */}
       <div className="px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🏦</span>
-          <div>
-            <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Bank Analyzer</div>
-            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('sidebar.tagline')}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏦</span>
+            <div>
+              <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Bank Analyzer</div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('sidebar.tagline')}</div>
+            </div>
+          </div>
+
+          <div className="relative" ref={themeMenuRef}>
+            <button
+              onClick={() => setShowThemeMenu((v) => !v)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-all hover:opacity-90"
+              style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+              title="Tema visual"
+              aria-label="Abrir selector de tema"
+            >
+              ⚙
+            </button>
+
+            {showThemeMenu && (
+              <div
+                className="absolute top-10 right-0 w-44 rounded-xl p-2 z-50"
+                style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 12px 24px rgba(0,0,0,0.25)' }}
+              >
+                <div className="px-2 pb-2 text-xs" style={{ color: 'var(--text-muted)' }}>Tema visual</div>
+                <div className="space-y-1">
+                  {availableThemes.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setTheme(item.id)
+                        setShowThemeMenu(false)
+                      }}
+                      className="w-full text-left px-2 py-2 rounded-lg text-sm transition-all"
+                      style={{
+                        background: theme === item.id ? 'var(--accent-primary)' : 'transparent',
+                        color: theme === item.id ? '#fff' : 'var(--text-secondary)',
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -78,7 +138,7 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
             color: activeView === 'settings' ? '#fff' : 'var(--text-secondary)',
           }}
         >
-          <span>⚙️</span> {t('nav.categorias')}
+          <span>🗂️</span> {t('nav.categorias')}
         </button>
       </nav>
 

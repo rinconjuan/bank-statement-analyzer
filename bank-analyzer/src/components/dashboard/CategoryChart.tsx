@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { MovementsSummary } from '../../services/api'
+import { useLanguage } from '../../contexts/LanguageContext'
+import { translateCategoryName } from '../../i18n/categories'
 
 interface CategoryChartProps {
   summary: MovementsSummary | null
@@ -15,14 +17,15 @@ function formatAmount(n: number): string {
 type Tab = 'expense' | 'income'
 
 export function CategoryChart({ summary }: CategoryChartProps) {
+  const { lang } = useLanguage()
   const [tab, setTab] = useState<Tab>('expense')
 
   const allCategories = summary?.by_category ?? []
 
   const data = allCategories
     .map((c) => ({
-      name: `${c.category_icon} ${c.category_name}`,
-      shortName: c.category_name,
+      name: `${c.category_icon} ${translateCategoryName(c.category_name, lang)}`,
+      shortName: translateCategoryName(c.category_name, lang),
       icon: c.category_icon,
       value: tab === 'expense' ? c.expense_total : c.income_total,
       color: c.category_color,

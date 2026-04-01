@@ -187,6 +187,28 @@ function DashboardHelp({ lang }: { lang: Lang }) {
             'Minimum amount required to avoid default. Paying only the minimum generates interest on the remainder.',
           )}
         />
+
+        <div className="mt-4 mb-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+          {l(lang, 'Consumos por mes y valor de cuota', 'Monthly charges and installment value')}
+        </div>
+        <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+          {l(lang,
+            'En la sección "Consumos por mes", cada fila representa el mes calendario de los movimientos. "cuota" no es el total de compras del mes: es la suma de lo que realmente se cobra en este extracto para esos movimientos (campo "cuota_mes").',
+            'In the "Charges by month" section, each row represents the calendar month of the movements. "Installment" is not the total purchases for that month: it is the sum actually charged in this statement for those movements ("cuota_mes").',
+          )}
+        </p>
+        <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+          {l(lang,
+            'Si haces click en una fila, el panel se contrae y se abre un detalle lateral con los movimientos que componen ese valor de cuota.',
+            'If you click a row, the panel shrinks and a side detail opens with the movements that make up that installment value.',
+          )}
+        </p>
+        <Callout>
+          💡 {l(lang,
+            <>Ejemplo: compra por <strong>$900.000</strong> a 6 cuotas puede mostrar <strong>cuota: $150.000</strong>. El total de consumo sigue siendo $900.000, pero en este extracto solo se cobra la cuota del mes.</>,
+            <>Example: a <strong>$900,000</strong> purchase in 6 installments may show <strong>installment: $150,000</strong>. Total charge remains $900,000, but this statement only charges the current installment.</>,
+          )}
+        </Callout>
       </Section>
 
       <Divider />
