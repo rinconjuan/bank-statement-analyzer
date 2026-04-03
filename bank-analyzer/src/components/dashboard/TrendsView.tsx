@@ -46,28 +46,89 @@ function Sparkline({ points }: { points: number[] }) {
   )
 }
 
-// ── Bar chart (simple HTML) ───────────────────────────────────────────────
-function BarChart({ data }: { data: { label: string; value: number; color?: string }[] }) {
-  const max = Math.max(...data.map((d) => d.value)) || 1
+// ── Spending chart variants ───────────────────────────────────────────────
+type SpendingPoint = { label: string; value: number; fullLabel: string }
+
+// A: Line + filled area (SVG)
+function SpendingLineArea({ data }: { data: SpendingPoint[] }) {
+  if (data.length < 2) return null
+  const W = 600; const H = 140; const PAD = { t: 16, r: 8, b: 28, l: 8 }
+  const iW = W - PAD.l - PAD.r; const iH = H - PAD.t - PAD.b
+  const max = Math.max(...data.map(d => d.value)) || 1
+  const min = Math.min(...data.map(d => d.value))
+  const range = max - min || 1
+  const xs = data.map((_, i) => PAD.l + (i / (data.length - 1)) * iW)
+  const ys = data.map(d => PAD.t + iH - ((d.value - min) / range) * iH)
+  const line = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ')
+  const area = `${line} L${xs[xs.length-1].toFixed(1)},${(PAD.t+iH).toFixed(1)} L${xs[0].toFixed(1)},${(PAD.t+iH).toFixed(1)} Z`
   return (
-    <div className="flex items-end gap-2 w-full" style={{ height: 120 }}>
-      {data.map((d) => (
-        <div key={d.label} className="flex flex-col items-center flex-1 gap-1 min-w-0">
-          <div
-            className="w-full rounded-t"
-            style={{
-              height: Math.max(4, Math.round((d.value / max) * 100)),
-              background: d.color ?? 'var(--accent-primary)',
-              opacity: 0.85,
-            }}
-            title={formatAmount(d.value)}
-          />
-          <span className="text-xs truncate w-full text-center" style={{ color: 'var(--text-muted)', fontSize: 10 }}>
-            {d.label}
-          </span>
-        </div>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 140, overflow: 'visible' }}>
+      <defs>
+        <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#spendGrad)" />
+      <path d={line} fill="none" stroke="var(--accent-primary)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      {data.map((d, i) => (
+        <g key={d.label}>
+          <circle cx={xs[i]} cy={ys[i]} r="4" fill="var(--accent-primary)" />
+          <title>{d.fullLabel}: {formatAmount(d.value)}</title>
+      <text x={xs[i]} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--text-muted)">{d.label}</text>
+        </g>
       ))}
-    </div>
+    </svg>
+  )
+}
+
+// ── Savings chart variants ─────────────────────────────────────────────────
+
+// A: Line with annotated points
+function SavingsLine({ points }: { points: SavingsTrendPoint[] }) {
+  if (points.length < 2) return null
+  const W = 600; const H = 150; const PAD = { t: 28, r: 8, b: 28, l: 8 }
+  const iW = W - PAD.l - PAD.r; const iH = H - PAD.t - PAD.b
+  const values = points.map(p => p.nuevo_saldo)
+  const max = Math.max(...values) || 1
+  const min = Math.min(...values)
+  const range = max - min || 1
+  const xs = points.map((_, i) => PAD.l + (i / (points.length - 1)) * iW)
+  const ys = points.map(p => PAD.t + iH - ((p.nuevo_saldo - min) / range) * iH)
+  const line = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ')
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 150, overflow: 'visible' }}>
+      <defs>
+        <linearGradient id="savGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--accent-green)" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="var(--accent-green)" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={`${line} L${xs[xs.length-1].toFixed(1)},${(PAD.t+iH).toFixed(1)} L${xs[0].toFixed(1)},${(PAD.t+iH).toFixed(1)} Z`} fill="url(#savGrad)" />
+      <path d={line} fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      {points.map((p, i) => {
+        const isGrowth = p.diferencia >= 0
+        const fmt = new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(Math.abs(p.diferencia))
+        return (
+          <g key={p.month}>
+            <circle cx={xs[i]} cy={ys[i]} r="5" fill={isGrowth ? 'var(--accent-green)' : 'var(--accent-red)'} />
+            {p.diferencia !== 0 && (
+              <text
+                x={xs[i]} y={ys[i] - 10}
+                textAnchor="middle" fontSize="8.5"
+                fill={isGrowth ? 'var(--accent-green)' : 'var(--accent-red)'}
+                fontWeight="600"
+              >
+                {isGrowth ? '+' : '-'}{fmt}
+              </text>
+            )}
+            <text x={xs[i]} y={H - 6} textAnchor="middle" fontSize="9" fill="var(--text-muted)">
+              {p.label.split(' ')[0].substring(0, 3)}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 
@@ -100,7 +161,7 @@ function CategoryTrendRow({ cat, t, lang }: { cat: CategoryTrend; t: (k: string)
             : cat.trend === 'stable' ? t('trends.stable') : t('trends.new')}
         </div>
         <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {cat.points.filter((p) => p.total > 0).length} {t('trends.monthlyAvg').startsWith('P') ? 'mes(es)' : 'month(s)'}
+          {t('trends.monthCount', { n: String(cat.points.filter((p) => p.total > 0).length) })}
         </div>
       </div>
     </div>
@@ -126,7 +187,7 @@ function RecurringRow({ charge, t }: { charge: RecurringCharge; t: (k: string) =
             {charge.description}
           </div>
           <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {charge.months_seen} {t('trends.monthlyAvg').startsWith('P') ? 'meses' : 'months'} · {t('trends.monthlyAvg')} {formatAmount(charge.avg_amount)}
+            {charge.months_seen} {t('trends.monthCount', { n: String(charge.months_seen) }).replace(/\d+\s*/, '')} · {t('trends.monthlyAvg')} {formatAmount(charge.avg_amount)}
             {charge.min_amount !== charge.max_amount
               ? ` (${formatAmount(charge.min_amount)} – ${formatAmount(charge.max_amount)})`
               : ''}
@@ -150,40 +211,6 @@ function RecurringRow({ charge, t }: { charge: RecurringCharge; t: (k: string) =
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-// ── Savings balance chart ─────────────────────────────────────────────────
-function SavingsBalanceChart({ points }: { points: SavingsTrendPoint[] }) {
-  if (points.length < 1) return null
-  const values = points.map((p) => p.nuevo_saldo)
-  const max = Math.max(...values) || 1
-  const min = Math.min(...values)
-  const range = max - min || 1
-
-  return (
-    <div className="flex items-end gap-2 w-full" style={{ height: 100 }}>
-      {points.map((p) => {
-        const heightPct = Math.max(8, Math.round(((p.nuevo_saldo - min) / range) * 76 + 8))
-        const isGrowth = p.diferencia >= 0
-        return (
-          <div key={p.month} className="flex flex-col items-center flex-1 gap-1 min-w-0">
-            <div
-              className="w-full rounded-t"
-              style={{
-                height: heightPct,
-                background: isGrowth ? 'var(--accent-green)' : 'var(--accent-red)',
-                opacity: 0.8,
-              }}
-              title={`${p.label}: ${formatAmount(p.nuevo_saldo)} (${isGrowth ? '+' : ''}${formatAmount(p.diferencia)})`}
-            />
-            <span className="text-xs truncate w-full text-center" style={{ color: 'var(--text-muted)', fontSize: 10 }}>
-              {p.label.split(' ')[0].substring(0, 3)}
-            </span>
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -231,8 +258,15 @@ export function TrendsView() {
 
   const barData = report.monthly_totals.map((m) => ({
     label: m.label.split(' ')[0].substring(0, 3),
+    fullLabel: m.label,
     value: m.total_expenses,
   }))
+
+  // Top 3 categories with the largest spending increase
+  const top3Rising = [...report.category_trends]
+    .filter((c) => c.trend === 'up')
+    .sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct))
+    .slice(0, 3)
 
   const totals = report.monthly_totals.map((m) => m.total_expenses)
   const firstTotal = totals[0] ?? 0
@@ -243,12 +277,11 @@ export function TrendsView() {
   const upCount = report.category_trends.filter((c) => c.trend === 'up').length
 
   const nMonths = report.months_analyzed
-  const basedLabel = lang === 'es'
-    ? `Basado en ${nMonths} extracto${nMonths !== 1 ? 's' : ''} cargado${nMonths !== 1 ? 's' : ''}`
-    : `Based on ${nMonths} loaded statement${nMonths !== 1 ? 's' : ''}`
+  const plural = nMonths !== 1 ? 's' : ''
+  const basedLabel = t('trends.basedOn', { n: String(nMonths), plural })
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-5">
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
@@ -298,25 +331,8 @@ export function TrendsView() {
         </div>
       </div>
 
-      {/* ── Row 2: Spending bar chart ── */}
-      {barData.length >= 2 && (
-        <div className="rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-          <div className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-            {t('trends.expPerStatement')}
-          </div>
-          <BarChart data={barData} />
-          <div className="flex flex-wrap gap-3 mt-3">
-            {report.monthly_totals.map((m) => (
-              <div key={m.month} className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{m.label}</span>{' '}
-                {formatAmount(m.total_expenses)}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Row 2b: Savings balance trend ── */}
+      {/* ── Row 2: Savings + Spending side by side ── */}
+      <div className="grid gap-5" style={{ gridTemplateColumns: report.savings_trend.length >= 1 && barData.length >= 3 ? '1fr 1fr' : '1fr' }}>
       {report.savings_trend.length >= 1 && (() => {
         const pts = report.savings_trend
         const lastPt = pts[pts.length - 1]
@@ -356,21 +372,7 @@ export function TrendsView() {
               </div>
             </div>
 
-            <SavingsBalanceChart points={pts} />
-
-            <div className="flex flex-wrap gap-3 mt-3">
-              {pts.map((p) => (
-                <div key={p.month} className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{p.label}</span>{' '}
-                  {formatAmount(p.nuevo_saldo)}
-                  {p.diferencia !== 0 && (
-                    <span style={{ color: p.diferencia >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                      {' '}{p.diferencia >= 0 ? '+' : ''}{formatAmount(p.diferencia)}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
+            <SavingsLine points={pts} />
 
             <div className="grid grid-cols-3 gap-3 mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
               <div>
@@ -407,61 +409,133 @@ export function TrendsView() {
         )
       })()}
 
-      {/* ── Row 3: Category trends ── */}
-      {report.category_trends.length > 0 && (
+      {barData.length >= 3 && (
         <div className="rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {t('trends.catEvolution')}
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {t('trends.expPerStatement')}
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {lang === 'es' ? `${barData.length} extractos` : `${barData.length} statements`}
+              </div>
             </div>
-            <div className="flex gap-2">
-              {(['all', 'up', 'down'] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setCatFilter(f)}
-                  className="text-xs px-2 py-1 rounded-lg"
-                  style={{
-                    background: catFilter === f ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                    color: catFilter === f ? '#fff' : 'var(--text-secondary)',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  {f === 'all' ? t('trends.all') : f === 'up' ? t('trends.upFilter') : t('trends.downFilter')}
-                </button>
-              ))}
+            <div className="text-right">
+              <div className="text-sm font-semibold" style={{ color: trendColor(overallTrend) }}>
+                {trendIcon(overallTrend)} {Math.abs(overallChangePct)}%
+              </div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {overallTrend === 'up' ? t('trends.increasing') : overallTrend === 'down' ? t('trends.decreasing') : t('trends.stableDesc')}
+              </div>
             </div>
+          </div>
+          <SpendingLineArea data={barData} />
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+            {barData.map((d) => (
+              <div key={d.label} className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{d.fullLabel}</span>{' '}
+                {formatAmount(d.value)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      </div>
+
+      {/* ── Row 3: Top 3 categories rising most ── */}
+      {top3Rising.length > 0 && (
+        <div className="rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          <div className="text-sm font-semibold mb-3" style={{ color: 'var(--accent-red)' }}>
+            {lang === 'es' ? '↑ Top 3 categorías que más subieron' : '↑ Top 3 fastest-growing categories'}
           </div>
           <div className="flex flex-col gap-2">
-            {filteredCats.length === 0 ? (
-              <div className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>
-                {t('trends.noCats')}
+            {top3Rising.map((cat, idx) => (
+              <div
+                key={cat.category_id ?? cat.category_name}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg"
+                style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}
+              >
+                <span className="text-base font-bold w-5 text-center" style={{ color: 'var(--text-muted)' }}>
+                  {idx + 1}
+                </span>
+                <span className="text-base flex-shrink-0">{cat.category_icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                    {translateCategoryName(cat.category_name, lang)}
+                  </div>
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {t('trends.monthlyAvg')} {formatAmount(cat.avg_monthly)}
+                  </div>
+                </div>
+                <div className="text-sm font-bold" style={{ color: 'var(--accent-red)' }}>
+                  ↑ {Math.abs(cat.change_pct)}%
+                </div>
               </div>
-            ) : (
-              filteredCats.map((cat) => (
-                <CategoryTrendRow key={cat.category_id ?? cat.category_name} cat={cat} t={t} lang={lang} />
-              ))
-            )}
+            ))}
           </div>
-          <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
-            {t('trends.legend')}
-          </p>
         </div>
       )}
 
-      {/* ── Row 4: Recurring charges ── */}
-      {report.recurring_charges.length > 0 && (
-        <div className="rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-          <div className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
-            {t('trends.recurringTitle')}
-          </div>
-          <div className="flex flex-col gap-2">
-            {report.recurring_charges.map((c) => (
-              <RecurringRow key={c.description} charge={c} t={t} />
-            ))}
-          </div>
-          <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
-            {t('trends.recurringNote')}
-          </p>
+      {/* ── Row 4: Category trends + Recurring charges side by side ── */}
+      {(report.category_trends.length > 0 || report.recurring_charges.length > 0) && (
+        <div className="grid gap-5" style={{ gridTemplateColumns: report.category_trends.length > 0 && report.recurring_charges.length > 0 ? '1fr 1fr' : '1fr' }}>
+
+          {report.category_trends.length > 0 && (
+            <div className="rounded-xl p-5 flex flex-col" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {t('trends.catEvolution')}
+                </div>
+                <div className="flex gap-2">
+                  {(['all', 'up', 'down'] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setCatFilter(f)}
+                      className="text-xs px-2 py-1 rounded-lg"
+                      style={{
+                        background: catFilter === f ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                        color: catFilter === f ? '#fff' : 'var(--text-secondary)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      {f === 'all' ? t('trends.all') : f === 'up' ? t('trends.upFilter') : t('trends.downFilter')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 flex-1">
+                {filteredCats.length === 0 ? (
+                  <div className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>
+                    {t('trends.noCats')}
+                  </div>
+                ) : (
+                  filteredCats.map((cat) => (
+                    <CategoryTrendRow key={cat.category_id ?? cat.category_name} cat={cat} t={t} lang={lang} />
+                  ))
+                )}
+              </div>
+              <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
+                {t('trends.legend')}
+              </p>
+            </div>
+          )}
+
+          {report.recurring_charges.length > 0 && (
+            <div className="rounded-xl p-5 flex flex-col" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+              <div className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+                {t('trends.recurringTitle')}
+              </div>
+              <div className="flex flex-col gap-2 flex-1">
+                {report.recurring_charges.map((c) => (
+                  <RecurringRow key={c.description} charge={c} t={t} />
+                ))}
+              </div>
+              <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
+                {t('trends.recurringNote')}
+              </p>
+            </div>
+          )}
+
         </div>
       )}
 

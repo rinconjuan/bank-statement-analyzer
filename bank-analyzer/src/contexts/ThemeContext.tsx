@@ -17,7 +17,7 @@ interface ThemeColors {
   borderSubtle: string
 }
 
-const THEME_DEFINITIONS: Record<ThemeName, ThemeColors> = {
+export const THEME_DEFINITIONS: Record<ThemeName, ThemeColors> = {
   dark: {
     bgPrimary: '#0d0f14',
     bgSecondary: '#13161e',
@@ -37,12 +37,12 @@ const THEME_DEFINITIONS: Record<ThemeName, ThemeColors> = {
     bgSecondary: '#f5f5f7',
     bgTertiary: '#ececf0',
     textPrimary: '#1d1d1f',
-    textSecondary: '#666666',
-    textMuted: '#999999',
+    textSecondary: '#4a5568',  // was #666666, improved WCAG AA contrast
+    textMuted: '#6b7280',      // was #999999, improved WCAG AA contrast
     accentPrimary: '#0071e3',
-    accentGreen: '#34c759',
-    accentRed: '#ff3b30',
-    accentAmber: '#ff9500',
+    accentGreen: '#16a34a',    // was #34c759, darker green for light bg contrast
+    accentRed: '#dc2626',      // was #ff3b30, darker red for light bg contrast
+    accentAmber: '#d97706',    // was #ff9500, darker amber for light bg contrast
     border: '#d2d2d7',
     borderSubtle: '#e5e5ea',
   },

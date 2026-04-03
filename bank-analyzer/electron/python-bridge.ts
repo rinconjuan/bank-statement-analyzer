@@ -51,17 +51,43 @@ export class PythonBridge {
 
   /**
    * Kill any orphaned backend process left over from a previous session.
-   * Reads the PID written by the last start() call and forcefully terminates it.
+   * Reads the PID written by the last start() call. Before killing, tries a
+   * synchronous HTTP GET to the saved port to confirm the process is actually
+   * our backend — avoids killing a recycled PID from an unrelated program.
    */
   private killOrphan(): void {
     try {
       const data = JSON.parse(fs.readFileSync(PID_FILE, 'utf-8'))
       if (typeof data.pid === 'number') {
-        console.log(`[PythonBridge] Killing orphaned backend process PID ${data.pid}`)
-        killProcessSync(data.pid)
+        // Validate: only kill if the process is still responding as our backend
+        const isOurs = this.isOurBackend(data.port)
+        if (isOurs) {
+          console.log(`[PythonBridge] Killing orphaned backend process PID ${data.pid}`)
+          killProcessSync(data.pid)
+        } else {
+          console.log(`[PythonBridge] PID ${data.pid} does not appear to be our backend, skipping kill`)
+        }
       }
     } catch (_) { /* no PID file or invalid contents — nothing to do */ }
     try { fs.unlinkSync(PID_FILE) } catch (_) {}
+  }
+
+  /**
+   * Synchronously check if a port is serving our health endpoint.
+   * Uses Node's built-in http module synchronously via execSync to avoid
+   * needing async in the kill path.
+   */
+  private isOurBackend(port: number | undefined): boolean {
+    if (!port || !Number.isInteger(port) || port <= 0) return true // assume ours if no port saved
+    try {
+      const result = execSync(
+        `node -e "const h=require('http');const r=h.get('http://127.0.0.1:${port}/health',res=>{process.exit(res.statusCode===200?0:1)});r.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),500)"`,
+        { stdio: 'ignore', timeout: 1000 }
+      )
+      return true
+    } catch (_) {
+      return false
+    }
   }
 
   /**
@@ -138,7 +164,14 @@ export class PythonBridge {
       try { fs.unlinkSync(PID_FILE) } catch (_) {}
     })
 
-    return this.waitForPort()
+    const port = await this.waitForPort()
+    // Update PID file with the resolved port so killOrphan can validate it
+    if (this.process?.pid) {
+      try {
+        fs.writeFileSync(PID_FILE, JSON.stringify({ pid: this.process.pid, port }), 'utf-8')
+      } catch (_) {}
+    }
+    return port
   }
 
   private waitForPort(maxWait = 15000): Promise<number> {

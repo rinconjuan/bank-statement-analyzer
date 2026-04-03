@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Movement, Category, updateMovement } from '../../services/api'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { translateCategoryName } from '../../i18n/categories'
+import { useThemeColors, hexAlpha } from '../../hooks/useThemeColors'
 
 interface MovementRowProps {
   movement: Movement
@@ -15,14 +16,15 @@ function formatAmount(n: number): string {
 }
 
 export function MovementRow({ movement, categories, onUpdated, showCuota = false }: MovementRowProps) {
-  const { lang } = useLanguage()
+  const { lang, t } = useLanguage()
   const [editing, setEditing] = useState(false)
   const [selectedCat, setSelectedCat] = useState<number | null>(movement.category_id)
   const [note, setNote] = useState(movement.note ?? '')
   const [saving, setSaving] = useState(false)
 
+  const colors = useThemeColors()
   const isIncome = movement.type === 'Ingreso'
-  const rowBg = isIncome ? 'rgba(34,197,94,0.04)' : 'transparent'
+  const rowBg = isIncome ? hexAlpha(colors.accentGreen, 0.04) : 'transparent'
 
   // Determinar el estado visual del movimiento para tarjeta de crédito
   const isPendingDeferred = showCuota &&
@@ -72,10 +74,10 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
         title={
           isPendingDeferred
             ? movement.num_cuotas_total && movement.num_cuotas_total > 1
-              ? `Valor total de la compra en ${movement.num_cuotas_total} cuotas — cuota 1/${movement.num_cuotas_total} se cobrará en el siguiente extracto`
-              : 'Monto total de la compra — se cobrará en el siguiente extracto'
+              ? t('movement.ttipTotalInstallments', { n: String(movement.num_cuotas_total) })
+              : t('movement.ttipNextStatement')
             : isActiveDeferred
-            ? `Compra original: ${formatAmount(movement.amount)} — cobrada en cuotas`
+            ? t('movement.ttipOriginalAmount', { amount: formatAmount(movement.amount) })
             : undefined
         }
       >
@@ -85,14 +87,14 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
         {showCuota && movement.es_pago_tarjeta ? (
           <span
             className="px-2 py-0.5 rounded-full text-xs"
-            style={{ background: 'rgba(79,127,255,0.15)', color: 'var(--accent-primary)' }}
+            style={{ background: hexAlpha(colors.accentPrimary, 0.15), color: colors.accentPrimary }}
           >
-            Pago tarjeta
+            {t('movement.cardPayment')}
           </span>
         ) : (
           <span
             className="px-2 py-0.5 rounded-full text-xs"
-            style={{ background: isIncome ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: isIncome ? 'var(--accent-green)' : 'var(--accent-red)' }}
+            style={{ background: isIncome ? hexAlpha(colors.accentGreen, 0.15) : hexAlpha(colors.accentRed, 0.15), color: isIncome ? colors.accentGreen : colors.accentRed }}
           >
             {movement.type}
           </span>
@@ -105,7 +107,7 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
               className="px-2 py-0.5 rounded-full text-xs"
               style={{ background: 'rgba(79,127,255,0.15)', color: 'var(--accent-primary)' }}
             >
-              Pago realizado
+              {t('movement.paidBadge')}
             </span>
           ) : isPendingDeferred ? (
             // Compra registrada este mes pero cuota se cobra después
@@ -113,24 +115,24 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
               className="px-2 py-0.5 rounded-full text-xs"
               title={
                 movement.num_cuotas_total && movement.num_cuotas_total > 1
-                  ? `Compra en ${movement.num_cuotas_total} cuotas de ${formatAmount(movement.amount / movement.num_cuotas_total)}. La cuota 1/${movement.num_cuotas_total} se cobrará en el siguiente extracto.`
-                  : 'Esta compra se cobrará en el siguiente extracto'
+                  ? t('movement.installmentsDesc', { n: String(movement.num_cuotas_total), amount: formatAmount(movement.amount / movement.num_cuotas_total) })
+                  : t('movement.nextStatementDesc')
               }
-              style={{ background: 'rgba(234,179,8,0.15)', color: '#ca8a04', cursor: 'help' }}
+              style={{ background: hexAlpha(colors.accentAmber, 0.15), color: colors.accentAmber, cursor: 'help' }}
             >
               {movement.num_cuotas_total && movement.num_cuotas_total > 1
-                ? `⏳ ${movement.num_cuotas_total} cuotas`
-                : '⏳ Próximo extracto'}
+                ? t('movement.numInstallments', { n: String(movement.num_cuotas_total) })
+                : t('movement.nextStatement')}
             </span>
           ) : isActiveDeferred ? (
             // Compra de mes anterior que se cobra ahora
             <div className="flex flex-col items-end gap-0.5">
               <span
                 className="px-2 py-0.5 rounded-full text-xs"
-                title={`Compra realizada el ${movement.date}, cobrada en este extracto`}
-                style={{ background: 'rgba(148,163,184,0.15)', color: 'var(--text-secondary)', cursor: 'help' }}
+                title={t('movement.deferredTitle', { date: movement.date })}
+                style={{ background: hexAlpha(colors.textSecondary, 0.15), color: colors.textSecondary, cursor: 'help' }}
               >
-                🔄 Diferido
+                {t('movement.deferred')}
               </span>
               {movement.cuota_mes > 0 && (
                 <span style={{ color: 'var(--accent-green)', fontSize: 11 }}>
@@ -156,7 +158,7 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
               className="text-xs rounded px-2 py-1 w-32"
               style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
             >
-              <option value="">{lang === 'en' ? 'Uncategorized' : 'Sin categoría'}</option>
+              <option value="">{t('movements.uncategorized')}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.icon} {translateCategoryName(c.name, lang)}</option>
               ))}
@@ -164,7 +166,7 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Nota..."
+              placeholder={t('movement.notePlaceholder')}
               className="text-xs rounded px-2 py-1 w-28"
               style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
             />
@@ -188,7 +190,7 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
                 {cat.icon} {translateCategoryName(cat.name, lang)}
               </span>
             ) : (
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{lang === 'en' ? 'Uncategorized' : 'Sin categoría'}</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('movements.uncategorized')}</span>
             )}
             <span className="opacity-0 group-hover:opacity-100 text-xs" style={{ color: 'var(--text-muted)' }}>✏️</span>
           </button>

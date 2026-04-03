@@ -5,6 +5,8 @@ declare global {
       openFileDialog: () => Promise<string | null>
       saveFileDialog: (options: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>
       getApiPort: () => Promise<number>
+      installUpdate: () => Promise<void>
+      onUpdaterStatus: (cb: (status: { state: string; version?: string; note?: string }) => void) => (() => void)
     }
   }
 }
@@ -14,12 +16,24 @@ function getBaseUrl(): string {
   return `http://127.0.0.1:${port}`
 }
 
+function friendlyError(status: number, detail: string): string {
+  if (status === 422) return `El PDF no pudo procesarse: ${detail || 'formato no reconocido'}`
+  if (status === 404) return `Recurso no encontrado`
+  if (status === 500) return `Error interno del servidor, intenta de nuevo`
+  return detail || 'Error desconocido'
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${getBaseUrl()}${path}`
-  const res = await fetch(url, options)
+  let res: Response
+  try {
+    res = await fetch(url, options)
+  } catch {
+    throw new Error('El servicio no está disponible, recarga la app')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error((err as { detail: string }).detail ?? 'Request failed')
+    throw new Error(friendlyError(res.status, (err as { detail: string }).detail))
   }
   return res.json() as Promise<T>
 }
@@ -121,22 +135,31 @@ export async function uploadStatement(file: File, statementType: string = 'cuent
   form.append('statement_type', statementType)
   form.append('password', password)
   const url = `${getBaseUrl()}/api/v1/statements/upload`
-  const res = await fetch(url, { method: 'POST', body: form })
+  let res: Response
+  try {
+    res = await fetch(url, { method: 'POST', body: form })
+  } catch {
+    throw new Error('El servicio no está disponible, recarga la app')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error((err as { detail: string }).detail ?? 'Upload failed')
+    const detail = (err as { detail: string }).detail
+    if (detail === 'PDF_PASSWORD_REQUIRED') throw new Error('PDF_PASSWORD_REQUIRED')
+    throw new Error(friendlyError(res.status, detail))
   }
   return res.json() as Promise<UploadResponse>
 }
 
 // Movements
-export const fetchMovements = (params: { month_id?: number; calendar_month?: string; category_id?: number; type?: string; search?: string }) => {
+export const fetchMovements = (params: { month_id?: number; calendar_month?: string; category_id?: number; type?: string; search?: string; skip?: number; limit?: number }) => {
   const qs = new URLSearchParams()
   if (params.month_id != null) qs.set('month_id', String(params.month_id))
   if (params.calendar_month) qs.set('calendar_month', params.calendar_month)
   if (params.category_id != null) qs.set('category_id', String(params.category_id))
   if (params.type) qs.set('type', params.type)
   if (params.search) qs.set('search', params.search)
+  if (params.skip != null) qs.set('skip', String(params.skip))
+  if (params.limit != null) qs.set('limit', String(params.limit))
   return request<Movement[]>(`/api/v1/movements?${qs}`)
 }
 
@@ -161,8 +184,12 @@ export const createCategory = (data: Omit<Category, 'id'>) =>
   request<Category>('/api/v1/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
 export const updateCategory = (id: number, data: Partial<Omit<Category, 'id'>>) =>
   request<Category>(`/api/v1/categories/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-export const deleteCategory = (id: number) =>
-  request<{ ok: boolean }>(`/api/v1/categories/${id}`, { method: 'DELETE' })
+export const deleteCategory = (id: number, replacementCategoryId?: number) =>
+  request<{ ok: boolean }>(`/api/v1/categories/${id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ replacement_category_id: replacementCategoryId ?? null }),
+  })
 
 // Export
 export const getExportUrl = (type: 'csv' | 'excel' | 'report', month_id: number) =>
@@ -328,6 +355,13 @@ export interface MonthlySummary {
   ahorro_real: number | null
   savings_bank_name: string | null
   credit_bank_name: string | null
+  // CC↔Savings cross-check
+  cc_payment_from_savings: number
+  cc_payment_cross_confirmed: boolean
+  cc_payment_cross_diff: number
+  // Previous-month data for semaphore indicators
+  prev_total_expenses: number | null
+  prev_nuevo_saldo: number | null
 }
 
 export interface AvailableMonth {

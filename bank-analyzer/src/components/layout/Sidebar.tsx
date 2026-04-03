@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { MonthWithStats } from '../../services/api'
 import { useLanguage } from '../../contexts/LanguageContext'
-import { useTheme } from '../../contexts/ThemeContext'
 
 const STATEMENT_TYPE_ICON: Record<string, string> = {
   cuenta_ahorro: '🏦',
@@ -20,146 +19,119 @@ interface SidebarProps {
 
 export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, onDeleteMonth, activeView, onViewChange }: SidebarProps) {
   const { lang, t } = useLanguage()
-  const { theme, setTheme, availableThemes } = useTheme()
-  const [showThemeMenu, setShowThemeMenu] = useState(false)
-  const themeMenuRef = useRef<HTMLDivElement | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
   const MONTH_NAMES = lang === 'en'
     ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     : ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-  useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!themeMenuRef.current) return
-      if (!themeMenuRef.current.contains(event.target as Node)) {
-        setShowThemeMenu(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleOutsideClick)
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick)
-    }
-  }, [])
+  const NAV_ITEMS = [
+    { view: 'dashboard'  as const, icon: '📊', labelKey: 'nav.dashboard'   },
+    { view: 'mes_a_mes'  as const, icon: '📅', labelKey: 'nav.mesAMes'     },
+    { view: 'tendencias' as const, icon: '📈', labelKey: 'nav.tendencias'  },
+    { view: 'settings'   as const, icon: '⚙️', labelKey: 'nav.settings'    },
+  ]
 
   return (
     <aside
-      className="flex flex-col h-full w-64 flex-shrink-0"
-      style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}
+      className="flex flex-col h-full flex-shrink-0 transition-all duration-200"
+      style={{
+        width: collapsed ? 64 : 256,
+        background: 'var(--bg-secondary)',
+        borderRight: '1px solid var(--border)',
+      }}
     >
-      {/* Logo */}
-      <div className="px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+      {/* ── Logo / header ── */}
+      <div
+        className="flex items-center justify-between flex-shrink-0"
+        style={{
+          padding: collapsed ? '14px 0' : '20px',
+          borderBottom: '1px solid var(--border)',
+          justifyContent: collapsed ? 'center' : 'space-between',
+        }}
+      >
+        {!collapsed && (
+          <div className="flex items-center gap-2 min-w-0">
             <span className="text-2xl">🏦</span>
-            <div>
+            <div className="min-w-0">
               <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Bank Analyzer</div>
-              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('sidebar.tagline')}</div>
+              <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{t('sidebar.tagline')}</div>
             </div>
           </div>
+        )}
 
-          <div className="relative" ref={themeMenuRef}>
-            <button
-              onClick={() => setShowThemeMenu((v) => !v)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-all hover:opacity-90"
-              style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-              title="Tema visual"
-              aria-label="Abrir selector de tema"
-            >
-              ⚙
-            </button>
-
-            {showThemeMenu && (
-              <div
-                className="absolute top-10 right-0 w-44 rounded-xl p-2 z-50"
-                style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 12px 24px rgba(0,0,0,0.25)' }}
-              >
-                <div className="px-2 pb-2 text-xs" style={{ color: 'var(--text-muted)' }}>Tema visual</div>
-                <div className="space-y-1">
-                  {availableThemes.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setTheme(item.id)
-                        setShowThemeMenu(false)
-                      }}
-                      className="w-full text-left px-2 py-2 rounded-lg text-sm transition-all"
-                      style={{
-                        background: theme === item.id ? 'var(--accent-primary)' : 'transparent',
-                        color: theme === item.id ? '#fff' : 'var(--text-secondary)',
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setCollapsed(v => !v)}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-base transition-all hover:opacity-80 flex-shrink-0"
+          style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+          title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+        >
+          {collapsed ? '▶' : '◀'}
+        </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="px-3 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-        <button
-          onClick={() => onViewChange('dashboard')}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all mb-1"
-          style={{
-            background: activeView === 'dashboard' ? 'var(--accent-primary)' : 'transparent',
-            color: activeView === 'dashboard' ? '#fff' : 'var(--text-secondary)',
-          }}
-        >
-          <span>📊</span> {t('nav.dashboard')}
-        </button>
-        <button
-          onClick={() => onViewChange('mes_a_mes')}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all mb-1"
-          style={{
-            background: activeView === 'mes_a_mes' ? 'var(--accent-primary)' : 'transparent',
-            color: activeView === 'mes_a_mes' ? '#fff' : 'var(--text-secondary)',
-          }}
-        >
-          <span>📅</span> {t('nav.mesAMes')}
-        </button>
-        <button
-          onClick={() => onViewChange('tendencias')}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all mb-1"
-          style={{
-            background: activeView === 'tendencias' ? 'var(--accent-primary)' : 'transparent',
-            color: activeView === 'tendencias' ? '#fff' : 'var(--text-secondary)',
-          }}
-        >
-          <span>📈</span> {t('nav.tendencias')}
-        </button>
-        <button
-          onClick={() => onViewChange('settings')}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all"
-          style={{
-            background: activeView === 'settings' ? 'var(--accent-primary)' : 'transparent',
-            color: activeView === 'settings' ? '#fff' : 'var(--text-secondary)',
-          }}
-        >
-          <span>🗂️</span> {t('nav.categorias')}
-        </button>
+      {/* ── Navigation ── */}
+      <nav
+        className="flex flex-col py-3 flex-shrink-0"
+        style={{
+          borderBottom: '1px solid var(--border)',
+          padding: collapsed ? '12px 0' : '12px',
+          alignItems: collapsed ? 'center' : 'stretch',
+          gap: 4,
+        }}
+      >
+        {NAV_ITEMS.map(({ view, icon, labelKey }) => (
+          <button
+            key={view}
+            onClick={() => onViewChange(view)}
+            title={collapsed ? t(labelKey) : undefined}
+            className="flex items-center rounded-lg transition-all"
+            style={{
+              gap: collapsed ? 0 : 8,
+              padding: collapsed ? '10px 0' : '8px 12px',
+              width: collapsed ? 44 : '100%',
+              height: collapsed ? 44 : undefined,
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              background: activeView === view ? 'var(--accent-primary)' : 'transparent',
+              color: activeView === view ? '#fff' : 'var(--text-secondary)',
+            }}
+          >
+            <span style={{ fontSize: collapsed ? 20 : 16 }}>{icon}</span>
+            {!collapsed && <span className="text-sm">{t(labelKey)}</span>}
+          </button>
+        ))}
       </nav>
 
-      {/* Months header */}
-      <div className="px-5 py-3 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-          {t('sidebar.months')}
-        </span>
+      {/* ── Months header ── */}
+      {!collapsed && (
+        <div className="px-5 py-3 flex items-center justify-between flex-shrink-0">
+          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+            {t('sidebar.months')}
+          </span>
+          <button
+            onClick={onUploadClick}
+            className="w-6 h-6 rounded flex items-center justify-center text-sm transition-all hover:opacity-80"
+            style={{ background: 'var(--accent-primary)', color: '#fff' }}
+            title={t('sidebar.uploadTooltip')}
+          >
+            +
+          </button>
+        </div>
+      )}
+      {collapsed && (
         <button
           onClick={onUploadClick}
-          className="w-6 h-6 rounded flex items-center justify-center text-sm transition-all hover:opacity-80"
-          style={{ background: 'var(--accent-primary)', color: '#fff' }}
+          className="flex-shrink-0 flex items-center justify-center transition-all hover:opacity-80"
+          style={{ height: 44, fontSize: 20, color: 'var(--accent-primary)' }}
           title={t('sidebar.uploadTooltip')}
         >
           +
         </button>
-      </div>
+      )}
 
-      {/* Months list */}
-      <div className="flex-1 overflow-y-auto px-3 pb-4">
-        {months.length === 0 ? (
+      {/* ── Months list ── */}
+      <div className="flex-1 overflow-y-auto pb-4" style={{ padding: collapsed ? '0 0 16px 0' : undefined }}>
+        {months.length === 0 && !collapsed ? (
           <div className="text-center py-8 px-4">
             <div className="text-3xl mb-2">📄</div>
             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -169,22 +141,38 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
         ) : (
           months.map((m) => {
             const isActive = m.id === activeMonthId
+            const icon = STATEMENT_TYPE_ICON[m.statement_type] ?? '🏦'
+            if (collapsed) {
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => onSelectMonth(m.id)}
+                  title={`${icon} ${MONTH_NAMES[m.month - 1]} ${m.year}${m.bank_name ? ' · ' + m.bank_name : ''}`}
+                  className="w-full flex items-center justify-center transition-all"
+                  style={{
+                    height: 44,
+                    fontSize: 20,
+                    background: isActive ? 'rgba(79,127,255,0.15)' : 'transparent',
+                    borderLeft: isActive ? '3px solid var(--accent-primary)' : '3px solid transparent',
+                  }}
+                >
+                  {icon}
+                </button>
+              )
+            }
             return (
               <div
                 key={m.id}
                 onClick={() => onSelectMonth(m.id)}
-                className="group relative flex items-center justify-between px-3 py-2 rounded-lg mb-1 cursor-pointer transition-all"
+                className="group relative flex items-center justify-between px-3 py-2 rounded-lg mb-1 cursor-pointer transition-all mx-3"
                 style={{
                   background: isActive ? 'rgba(79,127,255,0.15)' : 'transparent',
                   border: isActive ? '1px solid rgba(79,127,255,0.3)' : '1px solid transparent',
                 }}
               >
                 <div className="min-w-0">
-                  <div
-                    className="text-sm font-medium truncate"
-                    style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-primary)' }}
-                  >
-                    {STATEMENT_TYPE_ICON[m.statement_type] ?? '🏦'} {MONTH_NAMES[m.month - 1]} {m.year}
+                  <div className="text-sm font-medium truncate" style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+                    {icon} {MONTH_NAMES[m.month - 1]} {m.year}
                   </div>
                   <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
                     {m.bank_name ? `${m.bank_name} · ` : ''}{m.movements_count} {t('mesAMes.movs')}
@@ -203,6 +191,9 @@ export function Sidebar({ months, activeMonthId, onSelectMonth, onUploadClick, o
           })
         )}
       </div>
+
     </aside>
   )
 }
+
+

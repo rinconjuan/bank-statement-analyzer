@@ -77,8 +77,8 @@ function DashboardHelp({ lang }: { lang: Lang }) {
     <div>
       <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
         {l(lang,
-          'El Dashboard muestra un resumen rápido del mes seleccionado en la barra lateral. Las tarjetas y gráficas cambian según si el extracto es de una cuenta de ahorros o una tarjeta de crédito.',
-          'The Dashboard shows a quick summary of the month selected in the sidebar. Cards and charts change depending on whether the statement is from a savings account or a credit card.',
+          'El Resumen muestra una vista rápida del mes seleccionado en la barra lateral. Los indicadores y gráficas cambian según si el extracto es de una cuenta de ahorros o una tarjeta de crédito.',
+          'Overview shows a quick summary of the month selected in the sidebar. Cards and charts change depending on whether the statement is from a savings account or a credit card.',
         )}
       </p>
 

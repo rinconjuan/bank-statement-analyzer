@@ -56,6 +56,8 @@ def get_movements(
     category_id: Optional[int] = Query(None),
     movement_type: Optional[str] = Query(None, alias='type'),
     search: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0, description='Number of records to skip'),
+    limit: int = Query(500, ge=1, le=1000, description='Max records to return'),
     db: Session = Depends(get_db)
 ):
     q = db.query(Movement)
@@ -74,7 +76,7 @@ def get_movements(
         q = q.filter(Movement.type == movement_type)
     if search:
         q = q.filter(Movement.description.ilike(f'%{search}%'))
-    return q.order_by(Movement.date.desc()).all()
+    return q.order_by(Movement.date.desc()).offset(skip).limit(limit).all()
 
 
 @router.put('/{movement_id}', response_model=MovementSchema)
