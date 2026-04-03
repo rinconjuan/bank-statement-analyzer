@@ -5,10 +5,11 @@ type Dict = Record<string, string>
 
 const es: Dict = {
   // ── Navigation ──────────────────────────────────────────────────────────────
-  'nav.dashboard':   'Dashboard',
+  'nav.dashboard':   'Resumen',
   'nav.mesAMes':     'Mes a Mes',
   'nav.tendencias':  'Tendencias',
   'nav.categorias':  'Categorías',
+  'nav.settings':    'Configuración',
 
   // ── Sidebar ─────────────────────────────────────────────────────────────────
   'sidebar.tagline':        'Análisis financiero',
@@ -121,14 +122,182 @@ const es: Dict = {
   'mesAMes.extracto':          'Extracto',
   'mesAMes.movs':              'mov.',
   'mesAMes.nPayments':         '{n} pagos',
+
+  // ── Settings ──────────────────────────────────────────────────────────────────
+  'settings.categories':       'Categorías',
+  'settings.title':            'Configuración',
+  'settings.appearance':       'Apariencia',
+  'settings.balanceStyle':     'Estilo del panel de balance',
+  'settings.kpiDesc':          'Cuatro tarjetas con número grande',
+  'settings.miniDesc':         'Cabecera compacta con detalle expandible',
+
+  // ── Month names ───────────────────────────────────────────────────────────────
+  'months.short': 'Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic',
+  'months.long':  'Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre',
+
+  // ── Upload zone ───────────────────────────────────────────────────────────────
+  'upload.title':               'Cargar extracto bancario',
+  'upload.typeLabel':           'Tipo de extracto',
+  'upload.typeSavings':         'Cuenta de Ahorro',
+  'upload.typeCredit':          'Tarjeta de Crédito',
+  'upload.processing':          'Procesando...',
+  'upload.dragHere':            'Arrastra tu PDF aquí',
+  'upload.clickToSelect':       'haz clic para seleccionar',
+  'upload.movementsFound':      '{n} movimientos encontrados',
+  'upload.preview':             'Vista previa:',
+  'upload.confirm':             'Confirmar y ver dashboard',
+  'upload.uploadAnother':       'Cargar otro',
+  'upload.errorFile':           'Error al cargar el archivo',
+  'upload.errorPassword':       'Contraseña incorrecta. Inténtalo de nuevo.',
+  'upload.errorPdf':            'Solo se aceptan archivos PDF',
+  'upload.password.protected':  'Este PDF está protegido con contraseña',
+  'upload.password.desc':       'Ingresa la contraseña para procesar el extracto',
+  'upload.password.placeholder':'Contraseña del PDF...',
+  'upload.password.submit':     'Desbloquear y procesar',
+  'upload.cancel':              'Cancelar',
+
+  // ── Charts ────────────────────────────────────────────────────────────────────
+  'chart.lastSixMonths': 'Últimos 6 Meses',
+  'chart.noData':        'Sin datos históricos',
+  'chart.noExpenses':    'Sin egresos categorizados',
+  'chart.expByCategory': 'Egresos por Categoría',
+  'chart.income':        'Ingresos',
+  'chart.expenses':      'Egresos',
+
+  // ── Savings insights ──────────────────────────────────────────────────────────
+  'insights.savedMonth':  'Ahorraste {amount} este mes',
+  'insights.spentMore':   'Gastaste {amount} más de lo que ingresó',
+  'insights.spentPct':    'Gastaste el {pct}% de tus ingresos',
+  'insights.balanceUp':   'Saldo subió {amount} vs inicio del mes',
+  'insights.balanceDown': 'Saldo bajó {amount} vs inicio del mes',
+
+  // ── Semaphore chips ───────────────────────────────────────────────────────────
+  'semaphore.spentMore':  'Gastos > Ingresos',
+  'semaphore.saving':     'Ahorrando {pct}%',
+  'semaphore.spentUp':    'Gastos +{pct}% vs mes anterior',
+  'semaphore.spentDown':  'Gastos {pct}% vs mes anterior',
+  'semaphore.spentStable':'Gasto estable vs mes anterior',
+  'semaphore.balanceUp':  'Saldo en cuenta subió',
+  'semaphore.balanceDown':'Saldo en cuenta bajó',
+  'semaphore.balanceLow': 'Saldo menor al inicio del extracto',
+  'semaphore.ccHighPct':  'Pago TC = {pct}% del ingreso',
+
+  // ── CC cross-check ────────────────────────────────────────────────────────────
+  'crossCheck.title':     '🔗 Cruce pago tarjeta',
+  'crossCheck.confirmed': '✅ Confirmado',
+  'crossCheck.diff':      '⚠️ Diferencia',
+  'crossCheck.diffLabel': 'Diferencia',
+  'crossCheck.debited':   '🏦 {bank} debitó',
+  'crossCheck.recorded':  '💳 {bank} registró',
+
+  // ── MesAMes extras ────────────────────────────────────────────────────────────
+  'mesAMes.noStatement': 'ℹ️ Sin extracto {bank} para este mes.',
+  'mesAMes.beforeDate':  'antes del {date}',
+
+  // ── Movements table ───────────────────────────────────────────────────────────
+  'movements.search':       '🔍  Buscar movimientos...',
+  'movements.category':     'Categoría',
+  'movements.clear':        'Limpiar',
+  'movements.loading':      'Cargando movimientos...',
+  'movements.empty':        'No hay movimientos',
+  'movements.count':        '{n} movimientos',
+  'movements.countOf':      '{n} movimientos (de {total})',
+  'movements.totalsByCat':  'Totales por categoría',
+  'movements.incomeLabel':  '↑ Ingresos',
+  'movements.expensesLabel':'↓ Egresos',
+  'movements.balanceLabel': 'Balance',
+  'movements.uncategorized':'Sin categoría',
+
+  // ── Movement row ──────────────────────────────────────────────────────────────
+  'movement.ttipTotalInstallments':'Valor total de la compra en {n} cuotas — cuota 1/{n} se cobrará en el siguiente extracto',
+  'movement.ttipNextStatement':    'Monto total de la compra — se cobrará en el siguiente extracto',
+  'movement.ttipOriginalAmount':   'Compra original: {amount} — cobrada en cuotas',
+  'movement.cardPayment':          'Pago tarjeta',
+  'movement.paidBadge':            'Pago realizado',
+  'movement.installmentsDesc':     'Compra en {n} cuotas de {amount}. La cuota 1/{n} se cobrará en el siguiente extracto.',
+  'movement.nextStatementDesc':    'Esta compra se cobrará en el siguiente extracto',
+  'movement.numInstallments':      '⏳ {n} cuotas',
+  'movement.nextStatement':        '⏳ Próximo extracto',
+  'movement.deferred':             '🔄 Diferido',
+  'movement.deferredTitle':        'Compra realizada el {date}, cobrada en este extracto',
+  'movement.notePlaceholder':      'Nota...',
+
+  // ── Credit card summary ───────────────────────────────────────────────────────
+  'creditCard.loading':             'Cargando resumen tarjeta...',
+  'creditCard.paid':                'Pagaste',
+  'creditCard.between':             'entre el {from} y {to}',
+  'creditCard.on':                  'el {date}',
+  'creditCard.noPay':               'Sin pago registrado',
+  'creditCard.payBefore':           'Pagar antes del {date}',
+  'creditCard.totalPayment':        'Pago total',
+  'creditCard.today':               '¡Hoy!',
+  'creditCard.minPayment':          'Mínimo: {amount}',
+  'creditCard.creditLimit':         'Cupo disponible',
+  'creditCard.usedPct':             '{pct}% usado · total {total}',
+  'creditCard.spendByMonth':        'Consumo por mes',
+  'creditCard.colMonth':            'Mes',
+  'creditCard.colValue':            'Valor',
+  'creditCard.colInstallment':      'Cuota extracto',
+  'creditCard.colStatus':           'Estado',
+  'creditCard.thisStatement':       'Este extracto',
+  'creditCard.deferred':            'Diferido',
+  'creditCard.footnoteSpend':       'Consumo de {month} (valor nominal comprado)',
+  'creditCard.footnoteInstallment': 'Cuota que entra a este extracto ({month})',
+  'creditCard.footnotePayment':     'Pago total del extracto (saldo a pagar)',
+  'creditCard.detailColDate':       'Fecha',
+  'creditCard.detailColMovement':   'Movimiento',
+  'creditCard.detailColValue':      'Valor cuota este mes',
+  'creditCard.detailLoading':       'Cargando detalle...',
+  'creditCard.detailEmpty':         'No hay cuotas a detallar en este extracto.',
+  'mesAMes.ingresos':               'Ingresos',
+  'mesAMes.egresos':                'Egresos',
+  'mesAMes.patrimonio':             'Patrimonio',
+
+  // ── TopBar ────────────────────────────────────────────────────────────────────
+  'topBar.updateTooltip': 'Reiniciar para instalar actualización',
+  'topBar.updateBtn':     'Actualizar ahora',
+
+  // ── Sidebar ───────────────────────────────────────────────────────────────────
+  'sidebar.expand':   'Expandir panel',
+  'sidebar.collapse': 'Contraer panel',
+
+  // ── App ───────────────────────────────────────────────────────────────────────
+  'app.helpTooltip': 'Abrir sección de ayuda',
+
+  // ── Category editor ───────────────────────────────────────────────────────────
+  'catEditor.title':            'Categorías',
+  'catEditor.newBtn':           '+ Nueva categoría',
+  'catEditor.newTitle':         'Nueva categoría',
+  'catEditor.labelIcon':        'Ícono',
+  'catEditor.labelName':        'Nombre',
+  'catEditor.labelColor':       'Color',
+  'catEditor.labelKeywords':    'Palabras clave',
+  'catEditor.kwPlaceholder':    'Nueva palabra...',
+  'catEditor.namePlaceholder':  'Ej: Entretenimiento',
+  'catEditor.editBtn':          'Editar',
+  'catEditor.deleteBtn':        'Eliminar',
+  'catEditor.cancelBtn':        'Cancelar',
+  'catEditor.saveBtn':          'Guardar',
+  'catEditor.saving':           'Guardando...',
+  'catEditor.createBtn':        'Crear',
+  'catEditor.creating':         'Creando...',
+  'catEditor.confirmDelete':    '¿Eliminar la categoría "{name}"?',
+  'catEditor.confirmReassign':  'Si esta categoría tiene movimientos, ¿quieres reasignarlos antes de eliminar?',
+  'catEditor.reassignPrompt':   'Ingresa el ID de la categoría de destino:',
+  'catEditor.invalidId':        'ID de categoría inválido',
+
+  // ── Trends extras ─────────────────────────────────────────────────────────────
+  'trends.basedOn':   'Basado en {n} extracto{plural} cargado{plural}',
+  'trends.monthCount':'{n} mes(es)',
 }
 
 const en: Dict = {
   // ── Navigation ──────────────────────────────────────────────────────────────
-  'nav.dashboard':   'Dashboard',
+  'nav.dashboard':   'Overview',
   'nav.mesAMes':     'Month by Month',
   'nav.tendencias':  'Trends',
   'nav.categorias':  'Categories',
+  'nav.settings':    'Settings',
 
   // ── Sidebar ─────────────────────────────────────────────────────────────────
   'sidebar.tagline':        'Financial analysis',
@@ -199,7 +368,7 @@ const en: Dict = {
 
   // ── HelpModal ────────────────────────────────────────────────────────────────
   'help.title':          'Help — How does it work?',
-  'help.tab.dashboard':  '📊 Dashboard',
+  'help.tab.dashboard':  '📊 Overview',
   'help.tab.mesAMes':    '📅 Month by Month',
   'help.tab.tendencias': '📈 Trends',
 
@@ -241,6 +410,173 @@ const en: Dict = {
   'mesAMes.extracto':          'Statement',
   'mesAMes.movs':              'mov.',
   'mesAMes.nPayments':         '{n} payments',
+
+  // ── Settings ──────────────────────────────────────────────────────────────────
+  'settings.categories':       'Categories',
+  'settings.title':            'Settings',
+  'settings.appearance':       'Appearance',
+  'settings.balanceStyle':     'Balance panel style',
+  'settings.kpiDesc':          'Four cards with large numbers',
+  'settings.miniDesc':         'Compact header with expandable detail',
+
+  // ── Month names ───────────────────────────────────────────────────────────────
+  'months.short': 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec',
+  'months.long':  'January|February|March|April|May|June|July|August|September|October|November|December',
+
+  // ── Upload zone ───────────────────────────────────────────────────────────────
+  'upload.title':               'Upload bank statement',
+  'upload.typeLabel':           'Statement type',
+  'upload.typeSavings':         'Savings Account',
+  'upload.typeCredit':          'Credit Card',
+  'upload.processing':          'Processing...',
+  'upload.dragHere':            'Drop your PDF here',
+  'upload.clickToSelect':       'click to select',
+  'upload.movementsFound':      '{n} transactions found',
+  'upload.preview':             'Preview:',
+  'upload.confirm':             'Confirm and view dashboard',
+  'upload.uploadAnother':       'Upload another',
+  'upload.errorFile':           'Error loading the file',
+  'upload.errorPassword':       'Wrong password. Try again.',
+  'upload.errorPdf':            'Only PDF files are accepted',
+  'upload.password.protected':  'This PDF is password protected',
+  'upload.password.desc':       'Enter the password to process the statement',
+  'upload.password.placeholder':'PDF password...',
+  'upload.password.submit':     'Unlock and process',
+  'upload.cancel':              'Cancel',
+
+  // ── Charts ────────────────────────────────────────────────────────────────────
+  'chart.lastSixMonths': 'Last 6 Months',
+  'chart.noData':        'No historical data',
+  'chart.noExpenses':    'No categorized expenses',
+  'chart.expByCategory': 'Expenses by Category',
+  'chart.income':        'Income',
+  'chart.expenses':      'Expenses',
+
+  // ── Savings insights ──────────────────────────────────────────────────────────
+  'insights.savedMonth':  'You saved {amount} this month',
+  'insights.spentMore':   'You spent {amount} more than you earned',
+  'insights.spentPct':    'You spent {pct}% of your income',
+  'insights.balanceUp':   'Balance up {amount} vs start of month',
+  'insights.balanceDown': 'Balance down {amount} vs start of month',
+
+  // ── Semaphore chips ───────────────────────────────────────────────────────────
+  'semaphore.spentMore':  'Expenses > Income',
+  'semaphore.saving':     'Saving {pct}%',
+  'semaphore.spentUp':    'Expenses +{pct}% vs prev month',
+  'semaphore.spentDown':  'Expenses {pct}% vs prev month',
+  'semaphore.spentStable':'Stable spending vs prev month',
+  'semaphore.balanceUp':  'Account balance increased',
+  'semaphore.balanceDown':'Account balance decreased',
+  'semaphore.balanceLow': 'Balance below statement start',
+  'semaphore.ccHighPct':  'CC payment = {pct}% of income',
+
+  // ── CC cross-check ────────────────────────────────────────────────────────────
+  'crossCheck.title':     '🔗 Card payment cross-check',
+  'crossCheck.confirmed': '✅ Confirmed',
+  'crossCheck.diff':      '⚠️ Difference',
+  'crossCheck.diffLabel': 'Difference',
+  'crossCheck.debited':   '🏦 {bank} debited',
+  'crossCheck.recorded':  '💳 {bank} recorded',
+
+  // ── MesAMes extras ────────────────────────────────────────────────────────────
+  'mesAMes.noStatement': 'ℹ️ No {bank} statement for this month.',
+  'mesAMes.beforeDate':  'before {date}',
+
+  // ── Movements table ───────────────────────────────────────────────────────────
+  'movements.search':       '🔍  Search transactions...',
+  'movements.category':     'Category',
+  'movements.clear':        'Clear',
+  'movements.loading':      'Loading transactions...',
+  'movements.empty':        'No transactions',
+  'movements.count':        '{n} transactions',
+  'movements.countOf':      '{n} transactions (of {total})',
+  'movements.totalsByCat':  'Totals by category',
+  'movements.incomeLabel':  '↑ Income',
+  'movements.expensesLabel':'↓ Expenses',
+  'movements.balanceLabel': 'Balance',
+  'movements.uncategorized':'Uncategorized',
+
+  // ── Movement row ──────────────────────────────────────────────────────────────
+  'movement.ttipTotalInstallments':'Total purchase in {n} installments — installment 1/{n} will be charged in the next statement',
+  'movement.ttipNextStatement':    'Total purchase amount — will be charged in the next statement',
+  'movement.ttipOriginalAmount':   'Original purchase: {amount} — charged in installments',
+  'movement.cardPayment':          'Card payment',
+  'movement.paidBadge':            'Payment made',
+  'movement.installmentsDesc':     'Purchase in {n} installments of {amount}. Installment 1/{n} will be charged in the next statement.',
+  'movement.nextStatementDesc':    'This purchase will be charged in the next statement',
+  'movement.numInstallments':      '⏳ {n} installments',
+  'movement.nextStatement':        '⏳ Next statement',
+  'movement.deferred':             '🔄 Deferred',
+  'movement.deferredTitle':        'Purchase made on {date}, charged in this statement',
+  'movement.notePlaceholder':      'Note...',
+
+  // ── Credit card summary ───────────────────────────────────────────────────────
+  'creditCard.loading':             'Loading card summary...',
+  'creditCard.paid':                'You paid',
+  'creditCard.between':             'between {from} and {to}',
+  'creditCard.on':                  'on {date}',
+  'creditCard.noPay':               'No payment recorded',
+  'creditCard.payBefore':           'Pay before {date}',
+  'creditCard.totalPayment':        'Total payment',
+  'creditCard.today':               'Today!',
+  'creditCard.minPayment':          'Minimum: {amount}',
+  'creditCard.creditLimit':         'Available credit',
+  'creditCard.usedPct':             '{pct}% used · total {total}',
+  'creditCard.spendByMonth':        'Spending by month',
+  'creditCard.colMonth':            'Month',
+  'creditCard.colValue':            'Value',
+  'creditCard.colInstallment':      'Statement installment',
+  'creditCard.colStatus':           'Status',
+  'creditCard.thisStatement':       'This statement',
+  'creditCard.deferred':            'Deferred',
+  'creditCard.footnoteSpend':       'Spending in {month} (nominal purchase value)',
+  'creditCard.footnoteInstallment': 'Installment charged in this statement ({month})',
+  'creditCard.footnotePayment':     'Total statement payment (amount due)',
+  'creditCard.detailColDate':       'Date',
+  'creditCard.detailColMovement':   'Movement',
+  'creditCard.detailColValue':      'Installment value this month',
+  'creditCard.detailLoading':       'Loading detail...',
+  'creditCard.detailEmpty':         'No installments to detail in this statement.',
+  'mesAMes.ingresos':               'Income',
+  'mesAMes.egresos':                'Expenses',
+  'mesAMes.patrimonio':             'Net worth',
+
+  // ── TopBar ────────────────────────────────────────────────────────────────────
+  'topBar.updateTooltip': 'Restart to install update',
+  'topBar.updateBtn':     'Update now',
+
+  // ── Sidebar ───────────────────────────────────────────────────────────────────
+  'sidebar.expand':   'Expand panel',
+  'sidebar.collapse': 'Collapse panel',
+
+  // ── App ───────────────────────────────────────────────────────────────────────
+  'app.helpTooltip': 'Open help section',
+
+  // ── Category editor ───────────────────────────────────────────────────────────
+  'catEditor.title':            'Categories',
+  'catEditor.newBtn':           '+ New category',
+  'catEditor.newTitle':         'New category',
+  'catEditor.labelIcon':        'Icon',
+  'catEditor.labelName':        'Name',
+  'catEditor.labelColor':       'Color',
+  'catEditor.labelKeywords':    'Keywords',
+  'catEditor.kwPlaceholder':    'New keyword...',
+  'catEditor.namePlaceholder':  'E.g: Entertainment',
+  'catEditor.editBtn':          'Edit',
+  'catEditor.deleteBtn':        'Delete',
+  'catEditor.cancelBtn':        'Cancel',
+  'catEditor.saveBtn':          'Save',
+  'catEditor.saving':           'Saving...',
+  'catEditor.createBtn':        'Create',
+  'catEditor.creating':         'Creating...',
+  'catEditor.confirmDelete':    'Delete category "{name}"?',
+  'catEditor.confirmReassign':  'This category has movements. Do you want to reassign them before deleting?',
+  'catEditor.reassignPrompt':   'Enter the destination category ID:',
+  'catEditor.invalidId':        'Invalid category ID',
+
+  // ── Trends extras ─────────────────────────────────────────────────────────────
+  'trends.basedOn':   'Based on {n} loaded statement{plural}',
+  'trends.monthCount':'{n} month(s)',
 }
 
 export function getDict(lang: Lang): Dict {

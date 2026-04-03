@@ -31,8 +31,8 @@ export function useCategories() {
     await refresh()
   }, [refresh])
 
-  const remove = useCallback(async (id: number) => {
-    await deleteCategory(id)
+  const remove = useCallback(async (id: number, replacementCategoryId?: number) => {
+    await deleteCategory(id, replacementCategoryId)
     await refresh()
   }, [refresh])
 

@@ -32,6 +32,10 @@ class CategoryUpdate(BaseModel):
     icon: str | None = None
 
 
+class CategoryDeleteRequest(BaseModel):
+    replacement_category_id: int | None = None
+
+
 class Category(CategoryBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
@@ -307,3 +311,10 @@ class MonthlySummary(BaseModel):
     # Bank names from the uploaded statements (used by the frontend for dynamic labels)
     savings_bank_name: str | None = None
     credit_bank_name: str | None = None
+    # CC↔Savings cross-check: amounts from both perspectives
+    cc_payment_from_savings: float = 0.0     # debited from savings for CC this month
+    cc_payment_cross_confirmed: bool = False  # True if both sides match within 1 COP
+    cc_payment_cross_diff: float = 0.0        # savings_side - credit_side
+    # Previous-month comparison data for semaphore indicators
+    prev_total_expenses: float | None = None  # previous calendar month real expenses
+    prev_nuevo_saldo: float | None = None     # previous calendar month closing savings balance

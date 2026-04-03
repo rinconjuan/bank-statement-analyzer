@@ -1,10 +1,10 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from models.database import get_db, Category, Movement
-from models.schemas import Category as CategorySchema, CategoryCreate, CategoryUpdate
+from models.schemas import Category as CategorySchema, CategoryCreate, CategoryUpdate, CategoryDeleteRequest
 
 router = APIRouter()
 
@@ -68,13 +68,28 @@ def update_category(category_id: int, data: CategoryUpdate, db: Session = Depend
 
 
 @router.delete('/{category_id}')
-def delete_category(category_id: int, db: Session = Depends(get_db)):
+def delete_category(
+    category_id: int,
+    data: CategoryDeleteRequest | None = Body(default=None),
+    db: Session = Depends(get_db)
+):
     cat = db.query(Category).filter(Category.id == category_id).first()
     if not cat:
         raise HTTPException(404, 'Category not found')
     has_movements = db.query(Movement).filter(Movement.category_id == category_id).first()
     if has_movements:
-        raise HTTPException(409, 'Category has associated movements')
+        replacement_id = data.replacement_category_id if data else None
+        if replacement_id is None:
+            raise HTTPException(409, 'Category has associated movements. Provide replacement_category_id')
+        if replacement_id == category_id:
+            raise HTTPException(400, 'replacement_category_id must be different from category_id')
+        replacement = db.query(Category).filter(Category.id == replacement_id).first()
+        if not replacement:
+            raise HTTPException(404, 'Replacement category not found')
+        db.query(Movement).filter(Movement.category_id == category_id).update(
+            {Movement.category_id: replacement_id},
+            synchronize_session=False
+        )
     db.delete(cat)
     db.commit()
     return {'ok': True}

@@ -41,6 +41,18 @@ def detect_bank(text: str) -> str:
     return 'generic'
 
 
+def _is_bancolombia_credit_card(text: str) -> bool:
+    """Return True when a Bancolombia statement appears to be a credit-card extract."""
+    text_lower = text.lower()
+    return (
+        'información de la tarjeta' in text_lower
+        or 'informacion de la tarjeta' in text_lower
+        or 'deuda a la fecha de corte' in text_lower
+        or 'pago mínimo' in text_lower
+        or 'pago minimo' in text_lower
+    )
+
+
 def parse_amount(s: str) -> float:
     """Parse Colombian/European formatted numbers.
 
@@ -51,9 +63,13 @@ def parse_amount(s: str) -> float:
     - Colombian thousands separator: '1.234.567,89' → 1234567.89
     """
     s = s.strip().replace(' ', '')
-    # Decode doubled-character PDF artifact detectable by '..', ',,' or '$$'
-    if '..' in s or ',,' in s or '$$' in s:
-        s = re.sub(r'(.)\1', r'\1', s)
+    # Decode doubled-character PDF artifacts. Some statements contain 3+ repeated
+    # chars, so collapse repeatedly until stable.
+    while '..' in s or ',,' in s or '$$' in s or '--' in s:
+        s_new = re.sub(r'(.)\1', r'\1', s)
+        if s_new == s:
+            break
+        s = s_new
     # Detect negative (may be '--' after doubling collapse or single '-')
     negative = s.startswith('-')
     s = s.lstrip('-').lstrip('$')
@@ -130,6 +146,10 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
             # Use the dedicated Falabella parser (text-based + table for split-line entries)
             movements = _parse_falabella(file_path, full_text, password=password)
             metadata = _extract_falabella_metadata(full_text)
+        elif bank_name == 'bancolombia' and _is_bancolombia_credit_card(full_text):
+            # Dedicated parser for Bancolombia credit-card statements.
+            movements = _parse_bancolombia_credit(full_text)
+            metadata = _extract_bancolombia_credit_metadata(full_text)
         elif bank_name == 'davivienda':
             movements, davivienda_meta = _parse_davivienda(file_path, full_text, password=password)
             metadata.update(davivienda_meta)
@@ -161,6 +181,216 @@ def parse_pdf(file_path: str, password: str | None = None) -> tuple[list[dict], 
             unique_movements.append(m)
 
     return unique_movements, bank_name, metadata
+
+
+# ---------------------------------------------------------------------------
+# Bancolombia credit-card parser
+# ---------------------------------------------------------------------------
+
+def _extract_currency_values(raw_text: str) -> list[float]:
+    """Extract and parse all currency-like values from a raw text fragment."""
+    values: list[float] = []
+    for amount_s in re.findall(r'\$+\s*(-?[\d][\d\.,]*)', raw_text):
+        try:
+            values.append(parse_amount(amount_s))
+        except Exception:
+            continue
+    return values
+
+
+def _extract_bancolombia_credit_metadata(text: str) -> dict:
+    """Extract payment and limit metadata from Bancolombia credit-card text."""
+    metadata: dict = {
+        'min_payment': None,
+        'total_payment': None,
+        'fecha_limite_pago': None,
+        'fecha_corte': None,
+        'cupo_total': None,
+        'cupo_disponible': None,
+    }
+
+    lines = [ln.strip() for ln in text.split('\n')]
+
+    def _decode(s: str) -> str:
+        out = s
+        while True:
+            nxt = re.sub(r'(.)\1', r'\1', out)
+            if nxt == out:
+                break
+            out = nxt
+        return out.lower()
+
+    def _parse_es_date(fragment: str) -> Optional[str]:
+        month_map = {
+            'ene': 1, 'feb': 2, 'mar': 3, 'abr': 4, 'may': 5, 'jun': 6,
+            'jul': 7, 'ago': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dic': 12,
+        }
+        d = _decode(fragment)
+        d = re.sub(r'[^a-z0-9\s]', ' ', d)
+        d = re.sub(r'\s+', ' ', d).strip()
+
+        # month day year (e.g. "mar 16 2026")
+        m = re.search(r'(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\s+(\d{1,2})\s+(\d{4})', d)
+        if m:
+            mon = month_map[m.group(1)]
+            day = int(m.group(2))
+            year = int(m.group(3))
+            return f"{day:02d}/{mon:02d}/{year:04d}"
+
+        # day month year (fallback)
+        m = re.search(r'(\d{1,2})\s+(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\s+(\d{4})', d)
+        if m:
+            day = int(m.group(1))
+            mon = month_map[m.group(2)]
+            year = int(m.group(3))
+            return f"{day:02d}/{mon:02d}/{year:04d}"
+
+        return None
+
+    def _next_amount_after(idx: int, max_lines: int = 6) -> Optional[float]:
+        stop_tokens = ('pago total', 'pago mínimo', 'pago minimo', 'cupo total', 'disponible')
+        for j in range(idx + 1, min(idx + 1 + max_lines, len(lines))):
+            raw_j = lines[j]
+            if not raw_j:
+                continue
+            dec_j = _decode(raw_j)
+            if any(tok in dec_j for tok in stop_tokens):
+                # Allow explicit labels to be processed by their own handlers.
+                continue
+            vals = [abs(v) for v in _extract_currency_values(raw_j) if v != 0]
+            if vals:
+                return vals[0]
+        return None
+
+    for i, raw_line in enumerate(lines):
+        if not raw_line:
+            continue
+        decoded = _decode(raw_line)
+
+        if 'deuda a la fecha de corte' in decoded and metadata['fecha_corte'] is None:
+            # Period line usually appears immediately below, e.g. "31 ene - 28 feb 2026".
+            for j in range(i + 1, min(i + 5, len(lines))):
+                candidate = _decode(lines[j])
+                m = re.search(
+                    r'(\d{1,2})\s+(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\s*-\s*(\d{1,2})\s+(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\s+(\d{4})',
+                    re.sub(r'[^a-z0-9\s-]', ' ', candidate)
+                )
+                if m:
+                    day = int(m.group(3))
+                    mon2 = m.group(4)
+                    year = int(m.group(5))
+                    mon_map = {
+                        'ene': 1, 'feb': 2, 'mar': 3, 'abr': 4, 'may': 5, 'jun': 6,
+                        'jul': 7, 'ago': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dic': 12,
+                    }
+                    metadata['fecha_corte'] = f"{day:02d}/{mon_map[mon2]:02d}/{year:04d}"
+                    break
+
+        if 'pago total' in decoded and metadata['total_payment'] is None:
+            amount = _next_amount_after(i)
+            if amount is not None:
+                metadata['total_payment'] = amount
+            continue
+
+        if ('pago mínimo' in decoded or 'pago minimo' in decoded) and metadata['min_payment'] is None:
+            amount = _next_amount_after(i)
+            if amount is not None:
+                metadata['min_payment'] = amount
+            # Date limit is usually on the same nearby line as min payment amount.
+            for j in range(i + 1, min(i + 7, len(lines))):
+                fecha = _parse_es_date(lines[j])
+                if fecha:
+                    metadata['fecha_limite_pago'] = fecha
+                    break
+            continue
+
+        if 'cupo total' in decoded and metadata['cupo_total'] is None:
+            vals = [abs(v) for v in _extract_currency_values(raw_line) if v != 0]
+            if vals:
+                metadata['cupo_total'] = vals[0]
+            continue
+
+        if 'disponible' in decoded and metadata['cupo_disponible'] is None:
+            vals = [abs(v) for v in _extract_currency_values(raw_line) if v != 0]
+            if vals:
+                metadata['cupo_disponible'] = vals[0]
+            continue
+
+    return metadata
+
+
+def _parse_bancolombia_credit(text: str) -> list[dict]:
+    """Parse movements from a Bancolombia credit-card statement text dump.
+
+    Format is line/text based and each movement starts with:
+      <autorizacion(6d)> <dd/mm/yyyy> <descripcion> $ <valor>
+    """
+    movements: list[dict] = []
+    normalized = re.sub(r'\s+', ' ', text)
+
+    tx_pattern = re.compile(
+        r'(?P<auth>\d{6})\s+'
+        r'(?P<date>\d{2}/\d{2}/\d{4})\s+'
+        r'(?P<description>.*?)\s+\$+\s*'
+        r'(?P<amount>-?[\d][\d\.,]*,\d{2})'
+        r'(?P<tail>.*?)'
+        r'(?=(?:\d{6}\s+\d{2}/\d{2}/\d{4}\s)|(?:DCF:)|$)'
+    )
+
+    for match in tx_pattern.finditer(normalized):
+        date = match.group('date').strip()
+        description = match.group('description').strip().rstrip('$').strip()
+        amount_raw = match.group('amount').strip()
+        tail = match.group('tail')
+
+        if not description:
+            continue
+
+        try:
+            amount = parse_amount(amount_raw)
+        except Exception:
+            continue
+
+        mov_type = 'Ingreso' if amount < 0 else 'Egreso'
+        desc_lower = description.lower()
+        es_pago = ('abono' in desc_lower) or ('pago tarjeta' in desc_lower) or ('pago tc' in desc_lower)
+
+        cuota_mes = 0.0
+        valor_pendiente = 0.0
+        num_cuotas_actual: Optional[int] = None
+        num_cuotas_total: Optional[int] = None
+
+        cuotas_m = re.search(r'(\d{1,2})\s*/\s*(\d{1,3})', tail)
+        if cuotas_m:
+            num_cuotas_actual = int(cuotas_m.group(1))
+            num_cuotas_total = int(cuotas_m.group(2))
+
+        tail_values = [abs(v) for v in _extract_currency_values(tail)]
+        if tail_values:
+            cuota_mes = tail_values[0]
+            if len(tail_values) > 1:
+                valor_pendiente = tail_values[-1]
+        elif not es_pago:
+            cuota_mes = abs(amount)
+
+        aplica = es_pago or cuota_mes > 0
+        diferido = (not aplica) and (cuota_mes == 0)
+
+        movements.append({
+            'date': date,
+            'description': description,
+            'amount': abs(amount),
+            'type': mov_type,
+            'cuota_mes': cuota_mes,
+            'valor_pendiente': valor_pendiente,
+            'num_cuotas_actual': num_cuotas_actual,
+            'num_cuotas_total': num_cuotas_total,
+            'aplica_este_extracto': aplica,
+            'es_pago_tarjeta': es_pago,
+            'es_diferido_anterior': diferido,
+        })
+
+    return movements
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +441,19 @@ def _extract_falabella_metadata(text: str) -> dict:
             return None
         return f"{int(day_s):02d}/{month_num:02d}/{year_s}"
 
+    def _parse_es_date_any(s: str) -> 'str | None':
+        """Parse either 'DD mmm YYYY' or 'DD de <mes> de YYYY'."""
+        s = re.sub(r'\s+', ' ', s.strip().lower())
+
+        m = re.search(r'(\d{1,2})\s+de\s+([a-záéíóú]{3,})\s+de\s+(\d{4})', s, re.IGNORECASE)
+        if m:
+            day_s, month_word, year_s = m.group(1), m.group(2).lower(), m.group(3)
+            month_num = _ES_MONTHS_SHORT.get(month_word) or _ES_MONTHS_SHORT.get(month_word[:3])
+            if month_num:
+                return f"{int(day_s):02d}/{month_num:02d}/{year_s}"
+
+        return _parse_es_date(s)
+
     for raw_line in text.split('\n'):
         raw_line = raw_line.strip()
         if not raw_line:
@@ -252,6 +495,37 @@ def _extract_falabella_metadata(text: str) -> dict:
             fecha = _parse_es_date(decoded[corte_idx:])
             if fecha:
                 metadata['fecha_corte'] = fecha
+
+    # Fallback 1: many Falabella PDFs expose cutoff as "hasta el 14 feb 2026"
+    if metadata['fecha_corte'] is None:
+        m_cut = re.search(r'hasta\s+el\s+(\d{1,2}\s+[a-záéíóú]{3,}\s+\d{4})', text.lower())
+        if m_cut:
+            metadata['fecha_corte'] = _parse_es_date_any(m_cut.group(1))
+
+    # Fallback 2: payment deadline often appears on a line near "impuesto 4x1000"
+    if metadata['fecha_limite_pago'] is None:
+        m_due = re.search(
+            r'4x1000[^\n\r]*?((\d{1,2}\s+de\s+[a-záéíóú]{3,}\s+de\s+\d{4}))',
+            text.lower(),
+            re.IGNORECASE,
+        )
+        if m_due:
+            metadata['fecha_limite_pago'] = _parse_es_date_any(m_due.group(1))
+
+    # Fallback 3: if still missing, use the last long Spanish date found in the text
+    # (typically due date is later than cutoff date in the statement body).
+    if metadata['fecha_limite_pago'] is None:
+        long_dates = re.findall(
+            r'(\d{1,2}\s+de\s+[a-záéíóú]{3,}\s+de\s+\d{4})',
+            text.lower(),
+            re.IGNORECASE,
+        )
+        if long_dates:
+            parsed = [_parse_es_date_any(d) for d in long_dates]
+            parsed = [d for d in parsed if d]
+            if parsed:
+                parsed.sort(key=lambda d: tuple(int(x) for x in (d.split('/')[2], d.split('/')[1], d.split('/')[0])))
+                metadata['fecha_limite_pago'] = parsed[-1]
 
     return metadata
 
@@ -363,18 +637,48 @@ def _parse_falabella_text(text: str) -> list[dict]:
         # Credit-card convention: positive = purchase (Egreso), negative = payment/credit (Ingreso)
         mov_type = 'Ingreso' if amount < 0 else 'Egreso'
         es_pago = 'pago tarjeta' in description.lower() or 'pago tc' in description.lower()
+
+        # Attempt to recover installment fields from the tail text.
+        # Typical Falabella line has: value movement, num cuotas, cuota mes, valor pendiente.
+        raw_tail = rest
+        if _is_doubled_text(raw_tail):
+            raw_tail = re.sub(r'(.)\1', r'\1', raw_tail)
+
+        num_cuotas_actual: Optional[int] = None
+        num_cuotas_total: Optional[int] = None
+        cuotas_m = re.search(r'(\d+)\s+de\s+(\d+)', raw_tail.lower())
+        if cuotas_m:
+            num_cuotas_actual = int(cuotas_m.group(1))
+            num_cuotas_total = int(cuotas_m.group(2))
+
+        cuota_mes = 0.0
+        valor_pendiente = 0.0
+        tail_values = [abs(v) for v in _extract_currency_values(raw_tail)]
+        if len(tail_values) >= 2:
+            # First value is usually movement amount; second is cuota del extracto.
+            cuota_mes = tail_values[1]
+            valor_pendiente = tail_values[-1] if len(tail_values) > 2 else 0.0
+
+        # Explicit 1 de 1 should never be considered "Próximo extracto".
+        # If cuota was not extracted, assume full amount applies in this statement.
+        if not es_pago and cuota_mes == 0 and num_cuotas_actual == 1 and num_cuotas_total == 1:
+            cuota_mes = abs(amount)
+
+        aplica = es_pago or cuota_mes > 0
+        diferido = (not aplica) and (cuota_mes == 0) and (_FALABELLA_SEGURO_DESC not in description.lower())
+
         movements.append({
             'date': date,
             'description': description,
             'amount': abs(amount),
             'type': mov_type,
-            'cuota_mes': 0.0,
-            'valor_pendiente': 0.0,
-            'num_cuotas_actual': None,
-            'num_cuotas_total': None,
-            'aplica_este_extracto': es_pago,  # text parser can't determine from cuota_mes
+            'cuota_mes': cuota_mes,
+            'valor_pendiente': valor_pendiente,
+            'num_cuotas_actual': num_cuotas_actual,
+            'num_cuotas_total': num_cuotas_total,
+            'aplica_este_extracto': aplica,
             'es_pago_tarjeta': es_pago,
-            'es_diferido_anterior': False,
+            'es_diferido_anterior': diferido,
         })
 
     return movements

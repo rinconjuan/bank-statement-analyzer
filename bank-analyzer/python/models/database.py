@@ -131,6 +131,7 @@ DEFAULT_CATEGORIES = [
         'netflix', 'spotify', 'youtube premium', 'twitch', 'hbo', 'disney',
         'amazon prime', 'apple.com', 'apple com', 'apple tv', 'crunchyroll',
         'deezer', 'paramount', 'star+', 'directv go', 'claro video',
+        'google',
     ], 'color': '#ec4899', 'icon': '🎬'},
 
     # ── Video games ──────────────────────────────────────────────────────────
@@ -152,7 +153,7 @@ DEFAULT_CATEGORIES = [
         'exito', 'carulla', 'jumbo', 'metro grandes',
         'alkosto', 'colsubsidio', 'mercando', 'supermercado',
         'mercado donde', 'fruver', 'minimercado', 'raptiendas',
-        'la 14', 'grandes superficies',
+        'la 14', 'grandes superficies', 'oxxo', 'dollarcity',
     ], 'color': '#16a34a', 'icon': '🛒'},
 
     # ── Health / pharmacy ────────────────────────────────────────────────────
@@ -188,14 +189,14 @@ DEFAULT_CATEGORIES = [
         'delivery', 'rappi', 'ifood', 'domino', 'mcdonalds', 'mc donalds',
         'subway', 'burger', 'pizza', 'kfc', 'frisby', 'el corral',
         'crepes', 'asadero', 'panaderia', 'heladeria',
-        'sushi', 'tacos', 'wok', 'hacienda', 'andres dc',
+        'sushi', 'tacos', 'wok', 'hacienda', 'andres dc', 'dunkin donuts',
     ], 'color': '#f97316', 'icon': '🍽️'},
 
     # ── Transport ────────────────────────────────────────────────────────────
     {'name': 'Transporte',           'keywords': [
         'uber', 'taxi', 'metro ', 'peaje', 'indrive', 'indrives',
         'cabify', 'beat ', 'sitp', 'transmilenio', 'parqueadero',
-        'parking', 'gasolina', 'mototaxi',
+        'parking', 'gasolina', 'mototaxi', 'didi',
     ], 'color': '#06b6d4', 'icon': '🚗'},
 
     # ── General shopping ─────────────────────────────────────────────────────
