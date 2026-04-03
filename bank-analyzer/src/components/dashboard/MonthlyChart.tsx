@@ -1,7 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { MonthWithStats } from '../../services/api'
-
-const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 interface MonthlyChartProps {
   months: MonthWithStats[]
@@ -14,9 +14,12 @@ function formatK(v: number): string {
 }
 
 export function MonthlyChart({ months }: MonthlyChartProps) {
-  // Group entries by year+month, summing income and expenses so that two
-  // statements in the same month (e.g. cuenta_ahorro + tarjeta_credito) are
-  // consolidated into a single bar instead of appearing as duplicates.
+  const colors = useThemeColors()
+  const { t } = useLanguage()
+  const MONTH_NAMES_SHORT = t('months.short').split('|')
+  const incomeLabel = t('chart.income')
+  const expensesLabel = t('chart.expenses')
+
   const grouped = months.reduce<Record<string, { year: number; month: number; income: number; expenses: number }>>(
     (acc, m) => {
       const key = `${m.year}-${String(m.month).padStart(2, '0')}`
@@ -34,9 +37,9 @@ export function MonthlyChart({ months }: MonthlyChartProps) {
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-6)
     .map(([, v]) => ({
-      name: `${MONTH_NAMES[v.month - 1]} ${String(v.year).slice(2)}`,
-      Ingresos: v.income,
-      Egresos: v.expenses,
+      name: `${MONTH_NAMES_SHORT[v.month - 1]} ${String(v.year).slice(2)}`,
+      [incomeLabel]: v.income,
+      [expensesLabel]: v.expenses,
     }))
 
   return (
@@ -44,23 +47,23 @@ export function MonthlyChart({ months }: MonthlyChartProps) {
       className="rounded-xl p-5"
       style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
     >
-      <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>Últimos 6 Meses</h3>
+      <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>{t('chart.lastSixMonths')}</h3>
       {data.length === 0 ? (
         <div className="flex items-center justify-center h-48" style={{ color: 'var(--text-muted)' }}>
-          Sin datos históricos
+          {t('chart.noData')}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={data} barGap={4}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={formatK} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+            <XAxis dataKey="name" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={formatK} />
             <Tooltip
-              contentStyle={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)' }}
+              contentStyle={{ background: colors.bgTertiary, border: `1px solid ${colors.border}`, borderRadius: '8px', color: colors.textPrimary }}
               formatter={(value: number) => [`$${formatK(value)}`, '']}
             />
-            <Bar dataKey="Ingresos" fill="var(--accent-green)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Egresos" fill="var(--accent-red)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey={incomeLabel} fill={colors.accentGreen} radius={[4, 4, 0, 0]} />
+            <Bar dataKey={expensesLabel} fill={colors.accentRed} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}

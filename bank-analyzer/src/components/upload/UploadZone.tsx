@@ -1,17 +1,19 @@
 import { useState, useRef, useCallback } from 'react'
 import { uploadStatement, UploadResponse } from '../../services/api'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 interface UploadZoneProps {
   onUploaded: (response: UploadResponse) => void
   onCancel: () => void
 }
 
-const STATEMENT_TYPES = [
-  { value: 'cuenta_ahorro',   label: 'Cuenta de Ahorro',   icon: '🏦' },
-  { value: 'tarjeta_credito', label: 'Tarjeta de Crédito', icon: '💳' },
-]
+const STATEMENT_TYPE_VALUES = [
+  { value: 'cuenta_ahorro',   icon: '🏦', labelKey: 'upload.typeSavings' },
+  { value: 'tarjeta_credito', icon: '💳', labelKey: 'upload.typeCredit'  },
+] as const
 
 export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
+  const { t } = useLanguage()
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<UploadResponse | null>(null)
@@ -32,13 +34,12 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
       setPendingFile(null)
       setPassword('')
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Error al cargar el archivo'
+      const msg = e instanceof Error ? e.message : t('upload.errorFile')
       if (msg === 'PDF_PASSWORD_REQUIRED') {
         setPendingFile(file)
         setPasswordMode(true)
-        // If we already tried a password, show "wrong password" message
         if (pwd) {
-          setError('Contraseña incorrecta. Inténtalo de nuevo.')
+          setError(t('upload.errorPassword'))
         } else {
           setError(null)
         }
@@ -48,15 +49,15 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
     } finally {
       setUploading(false)
     }
-  }, [statementType])
+  }, [statementType, t])
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setError('Solo se aceptan archivos PDF')
+      setError(t('upload.errorPdf'))
       return
     }
     await doUpload(file)
-  }, [doUpload])
+  }, [doUpload, t])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -70,8 +71,9 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
     await doUpload(pendingFile, password.trim())
   }, [pendingFile, password, doUpload])
 
-  const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-  const selectedType = STATEMENT_TYPES.find(t => t.value === statementType)!
+  const MONTH_NAMES = t('months.long').split('|')
+  const statementTypes = STATEMENT_TYPE_VALUES.map(s => ({ ...s, label: t(s.labelKey) }))
+  const selectedType = statementTypes.find(s => s.value === statementType)!
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.6)' }}>
@@ -88,7 +90,7 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
         </button>
 
         <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-          Cargar extracto bancario
+          {t('upload.title')}
         </h2>
 
         {passwordMode ? (
@@ -97,17 +99,17 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
             <div className="rounded-xl p-4 mb-4 text-center" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}>
               <div className="text-3xl mb-2">🔒</div>
               <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
-                Este PDF está protegido con contraseña
+                {t('upload.password.protected')}
               </div>
               <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-                Ingresa la contraseña para procesar el extracto
+                {t('upload.password.desc')}
               </div>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handlePasswordSubmit() }}
-                placeholder="Contraseña del PDF..."
+                placeholder={t('upload.password.placeholder')}
                 autoFocus
                 className="w-full text-sm rounded-lg px-3 py-2 mb-3"
                 style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', outline: 'none' }}
@@ -124,14 +126,14 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
                   className="flex-1 py-2 rounded-xl font-medium text-sm transition-all hover:opacity-90 disabled:opacity-50"
                   style={{ background: 'var(--accent-primary)', color: '#fff' }}
                 >
-                  {uploading ? 'Procesando...' : 'Desbloquear y procesar'}
+                  {uploading ? t('upload.processing') : t('upload.password.submit')}
                 </button>
                 <button
                   onClick={() => { setPasswordMode(false); setPendingFile(null); setPassword(''); setError(null) }}
                   className="px-4 py-2 rounded-xl text-sm"
                   style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
                 >
-                  Cancelar
+                  {t('upload.cancel')}
                 </button>
               </div>
             </div>
@@ -141,22 +143,22 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
             {/* Statement type selector */}
             <div className="mb-4">
               <div className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Tipo de extracto
+                {t('upload.typeLabel')}
               </div>
               <div className="flex gap-2">
-                {STATEMENT_TYPES.map(t => (
+                {statementTypes.map(s => (
                   <button
-                    key={t.value}
-                    onClick={() => setStatementType(t.value)}
+                    key={s.value}
+                    onClick={() => setStatementType(s.value)}
                     className="flex-1 flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-xs font-medium transition-all"
                     style={{
-                      background: statementType === t.value ? 'rgba(79,127,255,0.15)' : 'var(--bg-tertiary)',
-                      border: statementType === t.value ? '1px solid rgba(79,127,255,0.5)' : '1px solid var(--border)',
-                      color: statementType === t.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                      background: statementType === s.value ? 'rgba(79,127,255,0.15)' : 'var(--bg-tertiary)',
+                      border: statementType === s.value ? '1px solid rgba(79,127,255,0.5)' : '1px solid var(--border)',
+                      color: statementType === s.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
                     }}
                   >
-                    <span className="text-base">{t.icon}</span>
-                    {t.label}
+                    <span className="text-base">{s.icon}</span>
+                    {s.label}
                   </button>
                 ))}
               </div>
@@ -175,10 +177,10 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
             >
               <div className="text-4xl mb-3">{uploading ? '⏳' : selectedType.icon}</div>
               <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
-                {uploading ? 'Procesando...' : 'Arrastra tu PDF aquí'}
+                {uploading ? t('upload.processing') : t('upload.dragHere')}
               </div>
               <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {uploading ? '' : `${selectedType.label} · haz clic para seleccionar`}
+                {uploading ? '' : `${selectedType.label} · ${t('upload.clickToSelect')}`}
               </div>
             </div>
             <input
@@ -204,11 +206,11 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
                     {MONTH_NAMES[preview.month - 1]} {preview.year}
                   </div>
                   <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {preview.movements_count} movimientos encontrados · {selectedType.icon} {selectedType.label}
+                    {t('upload.movementsFound', { n: String(preview.movements_count) })} · {selectedType.icon} {selectedType.label}
                   </div>
                 </div>
               </div>
-              <div className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Vista previa:</div>
+              <div className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>{t('upload.preview')}</div>
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {preview.preview.map((m) => (
                   <div key={m.id} className="flex justify-between text-xs py-1" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -226,14 +228,14 @@ export function UploadZone({ onUploaded, onCancel }: UploadZoneProps) {
                 className="flex-1 py-2.5 rounded-xl font-medium text-sm transition-all hover:opacity-90"
                 style={{ background: 'var(--accent-primary)', color: '#fff' }}
               >
-                Confirmar y ver dashboard
+                {t('upload.confirm')}
               </button>
               <button
                 onClick={() => { setPreview(null); setError(null) }}
                 className="px-4 py-2.5 rounded-xl text-sm"
                 style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
               >
-                Cargar otro
+                {t('upload.uploadAnother')}
               </button>
             </div>
           </div>

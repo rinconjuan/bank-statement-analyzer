@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { MonthWithStats } from '../../services/api'
 import { getExportUrl } from '../../services/api'
 import { useLanguage } from '../../contexts/LanguageContext'
@@ -13,6 +14,18 @@ interface TopBarProps {
 export function TopBar({ activeMonth, onUploadClick }: TopBarProps) {
   const { lang, setLang, t } = useLanguage()
   const MONTH_NAMES = lang === 'en' ? MONTH_NAMES_EN : MONTH_NAMES_ES
+  const [updaterState, setUpdaterState] = useState<string>('idle')
+  const [updaterVersion, setUpdaterVersion] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onUpdaterStatus((status) => {
+      setUpdaterState(status.state)
+      setUpdaterVersion(status.version)
+    })
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [])
 
   const handleExport = (type: 'csv' | 'excel' | 'report') => {
     if (!activeMonth) return
@@ -48,6 +61,17 @@ export function TopBar({ activeMonth, onUploadClick }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        {updaterState === 'downloaded' && (
+          <button
+            onClick={() => window.electronAPI?.installUpdate()}
+            className="text-xs px-3 py-1.5 rounded-lg transition-all hover:opacity-80 font-medium"
+            style={{ background: 'var(--accent-green)', color: '#fff' }}
+            title={t('topBar.updateTooltip')}
+          >
+            {t('topBar.updateBtn')}{updaterVersion ? ` (${updaterVersion})` : ''}
+          </button>
+        )}
+
         {/* Language toggle */}
         <button
           onClick={() => setLang(lang === 'es' ? 'en' : 'es')}

@@ -23,3 +23,8 @@ extraResources:
   - from: python-dist/
     to: python/
     filter: ["**/*"]
+publish:
+  - provider: github
+    owner: your-github-user
+    repo: bank-analyzer-releases
+    releaseType: release

@@ -441,6 +441,19 @@ def _extract_falabella_metadata(text: str) -> dict:
             return None
         return f"{int(day_s):02d}/{month_num:02d}/{year_s}"
 
+    def _parse_es_date_any(s: str) -> 'str | None':
+        """Parse either 'DD mmm YYYY' or 'DD de <mes> de YYYY'."""
+        s = re.sub(r'\s+', ' ', s.strip().lower())
+
+        m = re.search(r'(\d{1,2})\s+de\s+([a-záéíóú]{3,})\s+de\s+(\d{4})', s, re.IGNORECASE)
+        if m:
+            day_s, month_word, year_s = m.group(1), m.group(2).lower(), m.group(3)
+            month_num = _ES_MONTHS_SHORT.get(month_word) or _ES_MONTHS_SHORT.get(month_word[:3])
+            if month_num:
+                return f"{int(day_s):02d}/{month_num:02d}/{year_s}"
+
+        return _parse_es_date(s)
+
     for raw_line in text.split('\n'):
         raw_line = raw_line.strip()
         if not raw_line:
@@ -482,6 +495,37 @@ def _extract_falabella_metadata(text: str) -> dict:
             fecha = _parse_es_date(decoded[corte_idx:])
             if fecha:
                 metadata['fecha_corte'] = fecha
+
+    # Fallback 1: many Falabella PDFs expose cutoff as "hasta el 14 feb 2026"
+    if metadata['fecha_corte'] is None:
+        m_cut = re.search(r'hasta\s+el\s+(\d{1,2}\s+[a-záéíóú]{3,}\s+\d{4})', text.lower())
+        if m_cut:
+            metadata['fecha_corte'] = _parse_es_date_any(m_cut.group(1))
+
+    # Fallback 2: payment deadline often appears on a line near "impuesto 4x1000"
+    if metadata['fecha_limite_pago'] is None:
+        m_due = re.search(
+            r'4x1000[^\n\r]*?((\d{1,2}\s+de\s+[a-záéíóú]{3,}\s+de\s+\d{4}))',
+            text.lower(),
+            re.IGNORECASE,
+        )
+        if m_due:
+            metadata['fecha_limite_pago'] = _parse_es_date_any(m_due.group(1))
+
+    # Fallback 3: if still missing, use the last long Spanish date found in the text
+    # (typically due date is later than cutoff date in the statement body).
+    if metadata['fecha_limite_pago'] is None:
+        long_dates = re.findall(
+            r'(\d{1,2}\s+de\s+[a-záéíóú]{3,}\s+de\s+\d{4})',
+            text.lower(),
+            re.IGNORECASE,
+        )
+        if long_dates:
+            parsed = [_parse_es_date_any(d) for d in long_dates]
+            parsed = [d for d in parsed if d]
+            if parsed:
+                parsed.sort(key=lambda d: tuple(int(x) for x in (d.split('/')[2], d.split('/')[1], d.split('/')[0])))
+                metadata['fecha_limite_pago'] = parsed[-1]
 
     return metadata
 
@@ -593,18 +637,48 @@ def _parse_falabella_text(text: str) -> list[dict]:
         # Credit-card convention: positive = purchase (Egreso), negative = payment/credit (Ingreso)
         mov_type = 'Ingreso' if amount < 0 else 'Egreso'
         es_pago = 'pago tarjeta' in description.lower() or 'pago tc' in description.lower()
+
+        # Attempt to recover installment fields from the tail text.
+        # Typical Falabella line has: value movement, num cuotas, cuota mes, valor pendiente.
+        raw_tail = rest
+        if _is_doubled_text(raw_tail):
+            raw_tail = re.sub(r'(.)\1', r'\1', raw_tail)
+
+        num_cuotas_actual: Optional[int] = None
+        num_cuotas_total: Optional[int] = None
+        cuotas_m = re.search(r'(\d+)\s+de\s+(\d+)', raw_tail.lower())
+        if cuotas_m:
+            num_cuotas_actual = int(cuotas_m.group(1))
+            num_cuotas_total = int(cuotas_m.group(2))
+
+        cuota_mes = 0.0
+        valor_pendiente = 0.0
+        tail_values = [abs(v) for v in _extract_currency_values(raw_tail)]
+        if len(tail_values) >= 2:
+            # First value is usually movement amount; second is cuota del extracto.
+            cuota_mes = tail_values[1]
+            valor_pendiente = tail_values[-1] if len(tail_values) > 2 else 0.0
+
+        # Explicit 1 de 1 should never be considered "Próximo extracto".
+        # If cuota was not extracted, assume full amount applies in this statement.
+        if not es_pago and cuota_mes == 0 and num_cuotas_actual == 1 and num_cuotas_total == 1:
+            cuota_mes = abs(amount)
+
+        aplica = es_pago or cuota_mes > 0
+        diferido = (not aplica) and (cuota_mes == 0) and (_FALABELLA_SEGURO_DESC not in description.lower())
+
         movements.append({
             'date': date,
             'description': description,
             'amount': abs(amount),
             'type': mov_type,
-            'cuota_mes': 0.0,
-            'valor_pendiente': 0.0,
-            'num_cuotas_actual': None,
-            'num_cuotas_total': None,
-            'aplica_este_extracto': es_pago,  # text parser can't determine from cuota_mes
+            'cuota_mes': cuota_mes,
+            'valor_pendiente': valor_pendiente,
+            'num_cuotas_actual': num_cuotas_actual,
+            'num_cuotas_total': num_cuotas_total,
+            'aplica_este_extracto': aplica,
             'es_pago_tarjeta': es_pago,
-            'es_diferido_anterior': False,
+            'es_diferido_anterior': diferido,
         })
 
     return movements
