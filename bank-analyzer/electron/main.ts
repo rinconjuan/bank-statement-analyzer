@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as http from 'http'
 import { PythonBridge } from './python-bridge'
 import { registerIpcHandlers } from './ipc-handlers'
+import { setupAutoUpdater } from './updater'
 
 let mainWindow: BrowserWindow | null = null
 let pythonBridge: PythonBridge | null = null
@@ -98,6 +99,8 @@ async function createWindow(): Promise<void> {
     await mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
+  setupAutoUpdater(mainWindow)
+
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
   })
@@ -128,5 +131,12 @@ app.on('before-quit', () => {
 // Extra safety net: ensure the backend is stopped even when the OS terminates
 // the app directly (e.g. via the NSIS installer during an update).
 app.on('will-quit', () => {
+  pythonBridge?.stop()
+})
+
+// Synchronous last-resort cleanup: Node's 'exit' event fires even on abrupt
+// termination and only allows synchronous code — stop() uses execSync on
+// Windows so this works correctly.
+process.on('exit', () => {
   pythonBridge?.stop()
 })

@@ -208,6 +208,34 @@ def _determine_month_status(
     return 'ACTIVO'
 
 
+def _get_prev_month_data(year: int, month: int, db: Session) -> dict:
+    """Return prev_total_expenses and prev_nuevo_saldo from the previous calendar month.
+
+    Used by the frontend to render semaphore indicators (spending up/down, balance improved).
+    Returns empty values (None) if no data exists for the prior month.
+    """
+    prev_year, prev_month_num = _prev_month(year, month)
+    prev_savings = db.query(Month).filter(
+        Month.year == prev_year,
+        Month.month == prev_month_num,
+        Month.statement_type == 'cuenta_ahorro',
+    ).first()
+
+    if not prev_savings:
+        return {'prev_total_expenses': None, 'prev_nuevo_saldo': None}
+
+    mv_prev = db.query(Movement).filter(Movement.month_id == prev_savings.id).all()
+    prev_real_expenses = sum(
+        mv.amount for mv in mv_prev
+        if mv.type == 'Egreso' and not _is_internal_movement(mv.description)
+    )
+
+    return {
+        'prev_total_expenses': prev_real_expenses,
+        'prev_nuevo_saldo': prev_savings.nuevo_saldo,
+    }
+
+
 @router.get('/monthly', response_model=MonthlySummary)
 def get_monthly_summary(
     year: int = Query(..., description='Year'),
@@ -461,6 +489,18 @@ def get_monthly_summary(
         ahorro_real=ahorro_real,
         savings_bank_name=savings_month.bank_name if savings_month else None,
         credit_bank_name=credit_month.bank_name if credit_month else None,
+        # CC↔Savings cross-check
+        cc_payment_from_savings=falabella_payment_amount,
+        cc_payment_cross_confirmed=(
+            credit_info.payment_confirmed if credit_info else False
+        ),
+        cc_payment_cross_diff=(
+            round(falabella_payment_amount - credit_info.payment_made, 2)
+            if credit_info and credit_info.payment_made > 0
+            else 0.0
+        ),
+        # Previous-month data for semaphore indicators
+        **_get_prev_month_data(year, month, db),
     )
 
 

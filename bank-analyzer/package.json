@@ -1,10 +1,11 @@
 {
   "name": "bank-analyzer",
-  "version": "1.0.0",
+  "version": "1.0.2.1",
   "description": "Bank Statement Analyzer Desktop App",
+  "author": "Obalu Software by Muffler",
   "main": "electron-dist/main.js",
   "scripts": {
-    "dev": "node_modules\\.bin\\tsc -p electron/tsconfig.json && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "node ./node_modules/typescript/bin/tsc -p electron/tsconfig.json && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "backend": "cd python && python3 main.py",
     "build": "vite build && tsc -p electron/tsconfig.json",
     "electron:build": "electron-builder",
@@ -25,7 +26,7 @@
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.0",
     "concurrently": "^8.2.0",
-    "electron": "^35.7.5",
+    "electron": "^39.8.4",
     "electron-builder": "^26.8.1",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",

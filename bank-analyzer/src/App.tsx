@@ -4,12 +4,11 @@ import { TopBar } from './components/layout/TopBar'
 import { SummaryCards } from './components/dashboard/SummaryCards'
 import { CreditCardSummary } from './components/dashboard/CreditCardSummary'
 import { CategoryChart } from './components/dashboard/CategoryChart'
-import { MonthlyChart } from './components/dashboard/MonthlyChart'
+import { SavingsInsights } from './components/dashboard/SavingsInsights'
 import { TrendsView } from './components/dashboard/TrendsView'
 import { MesAMes } from './components/views/MesAMes'
-import { MovementsTable } from './components/movements/MovementsTable'
 import { UploadZone } from './components/upload/UploadZone'
-import { CategoryEditor } from './components/settings/CategoryEditor'
+import { SettingsView } from './components/settings/SettingsView'
 import { HelpModal } from './components/help/HelpModal'
 import { useMonths } from './hooks/useMonths'
 import { useMovements } from './hooks/useMovements'
@@ -22,18 +21,12 @@ export default function App() {
   const [showUpload, setShowUpload] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [activeView, setActiveView] = useState<'dashboard' | 'mes_a_mes' | 'tendencias' | 'settings'>('dashboard')
-  const [filters, setFilters] = useState<{ category_id?: number; type?: string; search?: string }>({})
   const { t } = useLanguage()
 
   const { months, refresh: refreshMonths, remove: removeMonth } = useMonths()
   const { categories, create: createCategory, update: updateCategory, remove: removeCategory } = useCategories()
 
-  const movementFilters = useMemo(() => ({
-    month_id: activeMonthId ?? undefined,
-    ...filters,
-  }), [activeMonthId, filters])
-
-  const { movements, summary, loading: movementsLoading, refresh: refreshMovements } = useMovements(movementFilters)
+  const { summary } = useMovements({ month_id: activeMonthId ?? undefined })
 
   const activeMonth = useMemo(() => months.find((m) => m.id === activeMonthId) ?? null, [months, activeMonthId])
 
@@ -67,7 +60,7 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto p-6">
           {activeView === 'settings' ? (
-            <CategoryEditor
+            <SettingsView
               categories={categories}
               onCreate={createCategory}
               onUpdate={updateCategory}
@@ -95,15 +88,14 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="space-y-6 max-w-7xl">
-              {/* Dashboard section header with Help button */}
+            <div className="space-y-6 w-full">
               <div className="flex items-center justify-between">
                 <div />
                 <button
                   onClick={() => setShowHelp(true)}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
                   style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
-                  title="Abrir sección de ayuda"
+                  title={t('app.helpTooltip')}
                 >
                   <span>❓</span> {t('btn.help')}
                 </button>
@@ -111,27 +103,21 @@ export default function App() {
               {activeMonth?.statement_type === 'tarjeta_credito' ? (
                 <CreditCardSummary month={activeMonth} />
               ) : (
-                <SummaryCards
-                  summary={summary}
-                  statementType={activeMonth?.statement_type}
-                  minPayment={activeMonth?.min_payment}
-                  totalPayment={activeMonth?.total_payment}
-                  saldoAnterior={activeMonth?.saldo_anterior}
-                  nuevoSaldo={activeMonth?.nuevo_saldo}
-                />
+                <>
+                  {summary && activeMonth && (
+                    <SavingsInsights summary={summary} month={activeMonth} />
+                  )}
+                  <SummaryCards
+                    summary={summary}
+                    statementType={activeMonth?.statement_type}
+                    minPayment={activeMonth?.min_payment}
+                    totalPayment={activeMonth?.total_payment}
+                    saldoAnterior={activeMonth?.saldo_anterior}
+                    nuevoSaldo={activeMonth?.nuevo_saldo}
+                  />
+                </>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <CategoryChart summary={summary} />
-                <MonthlyChart months={months} />
-              </div>
-              <MovementsTable
-                movements={movements}
-                categories={categories}
-                onFiltersChange={setFilters}
-                onRefresh={refreshMovements}
-                loading={movementsLoading}
-                statementType={activeMonth?.statement_type}
-              />
+              <CategoryChart summary={summary} />
             </div>
           )}
         </main>
