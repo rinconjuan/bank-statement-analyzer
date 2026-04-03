@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as http from 'http'
 import { PythonBridge } from './python-bridge'
 import { registerIpcHandlers } from './ipc-handlers'
+import { setupAutoUpdater } from './updater'
 
 let mainWindow: BrowserWindow | null = null
 let pythonBridge: PythonBridge | null = null
@@ -97,6 +98,8 @@ async function createWindow(): Promise<void> {
   } else {
     await mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  setupAutoUpdater(mainWindow)
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
