@@ -39,18 +39,6 @@ export function MovementRow({ movement, categories, onUpdated, showCuota = false
     movement.es_diferido_anterior
   // → compra de un mes anterior que se cobra ahora
 
-  // Determinar el estado visual del movimiento para tarjeta de crédito
-  const isPendingDeferred = showCuota &&
-    !movement.es_pago_tarjeta &&
-    !movement.es_diferido_anterior &&
-    movement.cuota_mes === 0 &&
-    movement.type === 'Egreso'
-  // → compra que ocurrió este mes pero se cobra después
-
-  const isActiveDeferred = showCuota &&
-    movement.es_diferido_anterior
-  // → compra de un mes anterior que se cobra ahora
-
   const handleSave = async () => {
     setSaving(true)
     try {
